@@ -60,6 +60,7 @@ header{background:var(--deep);color:#F2EFE7;padding:calc(var(--safe-t) + 12px) 1
 .caprow{display:flex;align-items:center;gap:8px;padding-top:6px;border-top:1px dashed var(--line);flex-wrap:wrap}
 .chipmini{font-size:12px;color:var(--ink-2);background:#F1EFE9;border-radius:999px;padding:3px 9px;border:1px solid var(--line)}
 .chipmini.act{background:var(--teal-soft);border-color:#BFDDD5;color:var(--teal)}
+.recOn{background:var(--urgent)!important;color:#fff!important;border-color:var(--urgent)!important;animation:b 1.2s infinite}
 .send{margin-inline-start:auto;background:var(--teal);color:#fff;border-radius:10px;padding:8px 16px;font-weight:600;font-size:14px}
 .send:disabled{opacity:.35}
 
@@ -135,7 +136,8 @@ main{flex:1;overflow-y:auto;padding:6px 14px calc(96px + var(--safe-b));-webkit-
 
 nav{position:fixed;bottom:0;inset-inline:0;z-index:50;background:rgba(247,245,240,.94);backdrop-filter:blur(12px);border-top:1px solid var(--line);display:flex;padding:6px 4px calc(6px + var(--safe-b))}
 nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;color:var(--ink-3);font-size:10.5px;font-weight:500}
-nav button .ic{font-size:18px;line-height:1}
+nav button .ic{font-size:17px;line-height:1}
+nav button{font-size:9.8px}
 nav button.on{color:var(--deep)}
 
 .sheet{position:fixed;inset:0;z-index:75;display:none}
@@ -175,6 +177,20 @@ textarea.inp{min-height:90px;resize:vertical;line-height:1.6}
   display:grid;place-items:center;box-shadow:0 10px 30px rgba(178,58,33,.28)}
 .recbtn.rec{background:var(--deep);box-shadow:0 0 0 8px rgba(14,42,43,.12)}
 .recbtn.rec #rIcon{font-size:26px}
+.balgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:12px}
+.balcard{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;box-shadow:var(--shadow)}
+.balcard b{display:block;font-size:12px;color:var(--ink-3);font-weight:500}
+.balcard .v{font-family:"Reem Kufi",sans-serif;font-size:19px;color:var(--deep);direction:ltr;text-align:end}
+.balcard .v.neg{color:var(--urgent)}
+.ftx{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:7px}
+.ftx .amt{font-family:"Reem Kufi",sans-serif;font-size:15px;direction:ltr;margin-inline-start:auto;white-space:nowrap}
+.ftx .amt.in{color:var(--done)}.ftx .amt.out{color:var(--urgent)}
+.ftx small{display:block;font-size:11px;color:var(--ink-3)}
+.ftbl{width:100%;border-collapse:collapse;margin-top:8px;font-size:13.5px}
+.ftbl th,.ftbl td{border-bottom:1px solid var(--line);padding:7px 6px;text-align:start}
+.ftbl th{color:var(--ink-3);font-weight:500;font-size:12px}
+.ftbl td.num{direction:ltr;text-align:end;font-family:"Reem Kufi",sans-serif}
+.scoperow{display:flex;gap:6px;margin-bottom:10px}
 #chatLog{padding-bottom:8px}
 .msg{margin-bottom:10px;padding:11px 13px;border-radius:13px;max-width:92%;white-space:pre-wrap;word-break:break-word;font-size:14.5px}
 .msg.me{background:var(--deep);color:#F2EFE7;margin-inline-start:auto;border-end-end-radius:4px}
@@ -212,6 +228,7 @@ textarea.inp{min-height:90px;resize:vertical;line-height:1.6}
     <div class="caprow">
       <button class="chipmini" id="capType">تلقائي</button>
       <button class="chipmini" id="capPriv">🔒 خاصة</button>
+      <button class="chipmini" id="capMic" title="إملاء صوتي">🎙</button>
       <button class="send" id="capSend" disabled>أضف</button>
     </div>
   </div>
@@ -237,6 +254,7 @@ textarea.inp{min-height:90px;resize:vertical;line-height:1.6}
   </div>
   <div class="pane" id="paneJournal"></div>
   <div class="pane" id="paneMeet"></div>
+  <div class="pane" id="paneFin"></div>
   <div class="pane" id="paneBoards"></div>
   <div class="pane" id="paneChat">
     <div class="chipsrow" id="quickAsk"></div>
@@ -254,6 +272,7 @@ textarea.inp{min-height:90px;resize:vertical;line-height:1.6}
   <button data-nav="draw"><span class="ic">✎</span>لوحة</button>
   <button data-nav="journal"><span class="ic">✒</span>مذكرات</button>
   <button data-nav="meet"><span class="ic">🎙</span>اجتماعات</button>
+  <button data-nav="fin"><span class="ic">₪</span>مالية</button>
   <button data-nav="chat"><span class="ic">✧</span>المساعد</button>
 </nav>
 
@@ -285,6 +304,7 @@ textarea.inp{min-height:90px;resize:vertical;line-height:1.6}
   <div class="jtop">
     <button class="iconbtn" id="jClose">✕</button>
     <input id="jTitle" placeholder="عنوان المذكرة (اختياري)">
+    <button class="iconbtn" id="jMic" title="إملاء صوتي">🎙</button>
     <button class="iconbtn" id="jSave">✓</button>
   </div>
   <textarea id="jBody" placeholder="اكتب بحرية… سيرة، مذكرة، تأمل، أو تفريغ ما في رأسك.
@@ -301,7 +321,7 @@ textarea.inp{min-height:90px;resize:vertical;line-height:1.6}
     <div class="rtime" id="rTime">00:00</div>
     <p class="rstate" id="rState">اضغط للتسجيل</p>
     <button id="rBtn" class="recbtn"><span id="rIcon">●</span></button>
-    <p class="hint" id="rHint" style="text-align:center;max-width:280px">التسجيل يبقى على جهازك. بعد الإيقاف يُفرَّغ نصياً ثم يُحلَّل، ويُحفظ النص فقط.</p>
+    <p class="hint" id="rHint" style="text-align:center;max-width:280px">التسجيل يبقى على جهازك. بعد الإيقاف يُفرَّغ نصياً ثم يُحلَّل، ويُحفظ النص فقط.<br><b>اترك الشاشة مفتوحة أثناء التسجيل</b> — التطبيق يمنع إطفاءها تلقائياً، ولو أطفأتها بالزر يتوقف التسجيل.</p>
     <button class="btn sec" id="rUpload" style="max-width:280px">أو ارفع ملفاً صوتياً</button>
     <input type="file" id="rFile" accept="audio/*" hidden>
   </div>
@@ -399,6 +419,12 @@ async function syncNow(quiet){
       if(m.data.prof&&(m.data.prof.at||0)>(prof.at||0))prof=m.data.prof;
     }
     await ghWrite('afkary-data.json',{v:3,notes,journals,threads,meetings,deleted,prof,at:Date.now()},m.sha);
+    const fb=store.get('afk_fin',null);
+    if(fb){
+      const rf=await ghRead('afkary-fin.json');
+      if(rf.data&&(rf.data.at||0)>(fb.at||0)){store.set('afk_fin',rf.data);finLoaded=false;finKey=null}
+      else await ghWrite('afkary-fin.json',fb,rf.sha);
+    }
     if(boards.length){const b=await ghRead('afkary-boards.json');
       if(b.data)boards=mergeById(boards,b.data.boards||[]);
       await ghWrite('afkary-boards.json',{v:3,boards,at:Date.now()},b.sha)}
@@ -419,6 +445,7 @@ function openDrawer(){
    <button class="ditem" data-go="notes"><span class="ic">▤</span>الأفكار<small>${notes.filter(n=>n.status!=='done').length}</small></button>
    <button class="ditem" data-go="journal"><span class="ic">✒</span>المذكرات<small>${journals.length}</small></button>
    <button class="ditem" data-go="meet"><span class="ic">🎙</span>الاجتماعات<small>${meetings.length}</small></button>
+   <button class="ditem" data-go="fin"><span class="ic">₪</span>المالية</button>
    <button class="ditem" data-go="boards"><span class="ic">◫</span>الرسومات<small>${boards.length}</small></button>
    <button class="ditem" data-go="settings"><span class="ic">⚙</span>الإعدادات</button>
    <div class="dsec">المحادثات</div>
@@ -807,6 +834,280 @@ async function extractJ(j,btn){
   if(btn)btn.textContent='استخرج';
 }
 
+/* ===== إبقاء الشاشة مضاءة أثناء التسجيل ===== */
+let wake=null;
+async function keepAwake(on){
+  try{
+    if(on){ if('wakeLock' in navigator && !wake) wake=await navigator.wakeLock.request('screen'); }
+    else if(wake){ await wake.release(); wake=null; }
+  }catch(e){}
+}
+document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden && mediaRec && mediaRec.state==='recording') keepAwake(true);
+});
+
+/* ===== الإملاء الصوتي (للأفكار والمذكرات) ===== */
+let clip={rec:null,chunks:[]};
+async function micToggle(btn,insert){
+  if(clip.rec&&clip.rec.state==='recording'){clip.rec.stop();return}
+  if(!settings.key||settings.provider!=='gemini')
+    return toast('الإملاء يحتاج مفتاح Gemini — أو استخدم ميكروفون لوحة مفاتيح الجوال');
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)
+    return toast('المتصفح لا يدعم التسجيل');
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
+    const types=['audio/mp4','audio/webm;codecs=opus','audio/webm',''];
+    const mime=types.find(t=>!t||(window.MediaRecorder&&MediaRecorder.isTypeSupported(t)))||'';
+    const r=new MediaRecorder(stream,mime?{mimeType:mime,audioBitsPerSecond:32000}:{});
+    clip={rec:r,chunks:[]};
+    const label=btn.textContent;
+    r.ondataavailable=e=>{if(e.data&&e.data.size)clip.chunks.push(e.data)};
+    r.onstop=async()=>{
+      stream.getTracks().forEach(t=>t.stop());
+      keepAwake(false);
+      btn.classList.remove('recOn');btn.textContent=label;
+      const blob=new Blob(clip.chunks,{type:r.mimeType||'audio/mp4'});
+      clip={rec:null,chunks:[]};
+      if(blob.size<1500)return;
+      toast('يفرّغ الصوت…');
+      try{
+        const b64=await blobToB64(blob);
+        const txt=await callAI({max:2500,
+          system:'فرّغ الكلام العربي نصاً مكتوباً صحيحاً ومرتّباً، بلا تعليق ولا مقدمة ولا إضافة. اكتب النص فقط.',
+          prompt:'فرّغ هذا المقطع.',audio:{data:b64,mime:(blob.type||'audio/mp4').split(';')[0]}});
+        if(txt&&txt.trim())insert(txt.trim());
+      }catch(e){toast('تعذّر التفريغ: '+e.message)}
+    };
+    r.start();keepAwake(true);
+    btn.classList.add('recOn');btn.textContent='■';
+    toast('يسجّل… اضغط مرة تانية للإيقاف');
+  }catch(e){toast('تعذّر الميكروفون: '+e.message)}
+}
+$('#capMic').onclick=e=>micToggle(e.currentTarget,t=>{
+  cap.value=(cap.value?cap.value+' ':'')+t;cap.dispatchEvent(new Event('input'));cap.focus()});
+$('#jMic').onclick=e=>micToggle(e.currentTarget,t=>{
+  const b=$('#jBody');b.value=(b.value?b.value+'\n':'')+t;b.focus()});
+
+/* ================= القسم المالي (مشفَّر محلياً) ================= */
+let fin={txs:[],accounts:['بنك','كاش','الصرافة'],updatedAt:0};
+let finKey=null, finLoaded=false;
+const CURS=['SAR','EGP','USD'];
+const CURN={SAR:'ريال',EGP:'جنيه',USD:'دولار'};
+let finScope='الكل';
+
+/* --- تشفير --- */
+const enc=new TextEncoder(), dec=new TextDecoder();
+const bufB64=b=>btoa(String.fromCharCode(...new Uint8Array(b)));
+const b64Buf=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function deriveKey(pass,salt){
+  const base=await crypto.subtle.importKey('raw',enc.encode(pass),'PBKDF2',false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:200000,hash:'SHA-256'},
+    base,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+}
+async function finEncrypt(obj){
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},finKey,enc.encode(JSON.stringify(obj)));
+  return {v:1,iv:bufB64(iv),ct:bufB64(ct),salt:store.get('afk_fin_salt',''),at:Date.now()};
+}
+async function finDecrypt(blob){
+  const data=await crypto.subtle.decrypt({name:'AES-GCM',iv:b64Buf(blob.iv)},finKey,b64Buf(blob.ct));
+  return JSON.parse(dec.decode(data));
+}
+async function finSave(){
+  fin.updatedAt=Date.now();
+  if(finKey){ store.set('afk_fin',await finEncrypt(fin)); }
+  else { store.set('afk_fin',{plain:fin,at:Date.now()}); }
+  queueSync();
+}
+async function finUnlock(pass){
+  let salt=store.get('afk_fin_salt','');
+  if(!salt){ const s=crypto.getRandomValues(new Uint8Array(16)); salt=bufB64(s); store.set('afk_fin_salt',salt); }
+  finKey=await deriveKey(pass,b64Buf(salt));
+  const blob=store.get('afk_fin',null);
+  if(blob&&blob.ct){ fin=await finDecrypt(blob); }
+  finLoaded=true;
+}
+function finGate(){
+  const blob=store.get('afk_fin',null);
+  if(blob&&blob.plain){fin=blob.plain;finLoaded=true;return renderFin()}
+  const first=!blob;
+  openSheet(`<h2>${first?'أنشئ كلمة سر للقسم المالي':'القسم المالي مقفول'}</h2>
+   <p class="hint">${first?'بياناتك المالية تُشفَّر على جهازك وفي المزامنة بهذه الكلمة. لا أحد يقرأها بدونها — ولا حتى من يفتح مستودعك على GitHub. <b>لو نسيتها لا يمكن استرجاع البيانات.</b>':'أدخل كلمة السر لفتح بياناتك المالية.'}</p>
+   <label class="f">كلمة السر</label><input class="inp" id="finPass" type="password" autocomplete="off">
+   ${first?'<label class="f">تأكيد</label><input class="inp" id="finPass2" type="password" autocomplete="off">':''}
+   <button class="btn" id="finGo">${first?'أنشئ وافتح':'افتح'}</button>
+   ${first?'<button class="btn sec" id="finSkip">بلا تشفير (غير مستحسن)</button>':''}`);
+  $('#finGo').onclick=async()=>{
+    const p1=$('#finPass').value;
+    if(p1.length<4)return toast('كلمة قصيرة جداً');
+    if(first&&p1!==$('#finPass2').value)return toast('الكلمتان غير متطابقتين');
+    try{ await finUnlock(p1); $('#sheet').classList.remove('on'); renderFin(); if(first)finSave(); }
+    catch(e){ toast('كلمة السر غير صحيحة'); }
+  };
+  if(first)$('#finSkip').onclick=()=>{finKey=null;finLoaded=true;$('#sheet').classList.remove('on');finSave();renderFin()};
+}
+
+/* --- تحليل الجملة محلياً --- */
+const AR_DIG={'٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9'};
+function normNum(t){return t.replace(/[٠-٩]/g,d=>AR_DIG[d]).replace(/,/g,'')}
+function parseFin(raw){
+  const t=normNum(' '+raw+' ');
+  const mnum=t.match(/(\d+(?:\.\d+)?)/);
+  if(!mnum)return null;
+  let amount=parseFloat(mnum[1]);
+  if(/ألف|الف|آلاف/.test(t))amount*=1000;
+  if(/مليون/.test(t))amount*=1000000;
+  let cur=settings.finCur||'SAR';
+  if(/ريال|ر\.س|sar/i.test(t))cur='SAR';
+  else if(/جنيه|ج\.م|egp/i.test(t))cur='EGP';
+  else if(/دولار|\$|usd/i.test(t))cur='USD';
+  let kind='out';
+  if(/قبضت|استلمت|دخل|إيراد|ايراد|راتب|وصلني|حوّل\s*لي|حول لي|مقدم|دفعة من|تحصيل|بيع/.test(t))kind='in';
+  if(/رصيدي|معي|عندي|الرصيد|موجود في|في البنك|في الكاش/.test(t)&&!/صرفت|دفعت|اشتريت/.test(t))kind='set';
+  let acct='كاش';
+  if(/بنك|الحساب|حوالة|تحويل بنكي|راجحي|اهلي|الأهلي/.test(t))acct='بنك';
+  else if(/كاش|نقدي|نقداً|نقدا/.test(t))acct='كاش';
+  else if(/صراف|محفظة|مدى|فيزا|بطاقة|stc|أبل باي|ابل باي/.test(t))acct='الصرافة';
+  const scope=/شركة|الشركة|مؤسسة|المؤسسة|الشغل|العميل|مشروع|إنتاج|انتاج|وزارة/.test(t)?'مؤسسة':'شخصي';
+  let cat='';
+  const CATS={'طعام':/أكل|اكل|طعام|مطعم|قهوة|كافيه|بقالة|سوبر ماركت|عشاء|غدا?ء/,
+    'مواصلات':/بنزين|وقود|تاكسي|أوبر|اوبر|كريم|مواصلات|تذكرة|طيران|سفر/,
+    'سكن':/إيجار|ايجار|سكن|كهرباء|مياه|فاتورة|فواتير|إنترنت|انترنت/,
+    'معدات':/كاميرا|عدسة|ميكروفون|معدات|هارد|بطارية|إضاءة|اضاءة|تصوير/,
+    'رواتب':/راتب|رواتب|أجور|اجور|مكافأة|فريق|طاقم/,
+    'صحة':/دواء|صيدلية|طبيب|علاج|مستشفى/,
+    'اتصالات':/شحن|رصيد جوال|باقة|اتصالات|stc|موبايلي/};
+  for(const k in CATS)if(CATS[k].test(t)){cat=k;break}
+  return {id:uid(),kind,amount,cur,acct,scope,cat,note:raw.trim(),at:Date.now(),createdAt:Date.now(),updatedAt:Date.now()};
+}
+async function addFinText(raw,useAI){
+  let tx=parseFin(raw);
+  if(useAI&&settings.key){
+    try{
+      const out=await callAI({max:300,
+        system:`حوّل الجملة المالية العربية إلى JSON فقط:
+{"kind":"in|out|set","amount":0,"cur":"SAR|EGP|USD","acct":"بنك|كاش|الصرافة","scope":"شخصي|مؤسسة","cat":"بند مختصر"}
+kind=set إذا كانت الجملة تقرير رصيد حالي. لا تكتب شيئاً غير JSON.`,
+        prompt:raw});
+      const j=JSON.parse(out.replace(/```json|```/g,'').trim());
+      if(j&&j.amount)tx={id:uid(),kind:j.kind||'out',amount:+j.amount,cur:j.cur||'SAR',acct:j.acct||'كاش',
+        scope:j.scope||'شخصي',cat:j.cat||'',note:raw.trim(),at:Date.now(),createdAt:Date.now(),updatedAt:Date.now()};
+    }catch(e){}
+  }
+  if(!tx)return toast('ما لقيتش مبلغ في الجملة');
+  if(!fin.accounts.includes(tx.acct))fin.accounts.push(tx.acct);
+  fin.txs.unshift(tx);await finSave();renderFin();
+  toast(`${tx.kind==='in'?'دخل':tx.kind==='set'?'رصيد':'مصروف'} ${tx.amount} ${CURN[tx.cur]} — ${tx.acct}`);
+}
+/* --- الأرصدة --- */
+function balances(scope){
+  const b={};
+  const list=[...fin.txs].filter(t=>scope==='الكل'||t.scope===scope).sort((a,b2)=>a.at-b2.at);
+  list.forEach(t=>{
+    const k=t.acct+'|'+t.cur;
+    if(!(k in b))b[k]=0;
+    if(t.kind==='set')b[k]=t.amount;
+    else if(t.kind==='in')b[k]+=t.amount;
+    else b[k]-=t.amount;
+  });
+  return b;
+}
+const fmtMoney=n=>Math.round(n).toLocaleString('en-US');
+function monthKey(ts){const d=new Date(ts);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
+function renderFin(){
+  if(!finLoaded)return finGate();
+  const b=balances(finScope);
+  const keys=Object.keys(b);
+  const mk=monthKey(Date.now());
+  const mTx=fin.txs.filter(t=>monthKey(t.at)===mk&&(finScope==='الكل'||t.scope===finScope));
+  const spent={},income={};
+  mTx.forEach(t=>{if(t.kind==='out')spent[t.cur]=(spent[t.cur]||0)+t.amount;
+    if(t.kind==='in')income[t.cur]=(income[t.cur]||0)+t.amount});
+  const day=new Date().getDate();
+  $('#paneFin').innerHTML=`
+   <div class="scoperow">${['الكل','شخصي','مؤسسة'].map(x=>`<button class="vbtn ${finScope===x?'on':''}" data-scope="${x}">${x}</button>`).join('')}</div>
+   <div class="capbox" style="margin-bottom:12px">
+     <textarea id="finIn" rows="1" placeholder="مثال: صرفت ٣٠٠ ريال على بنزين من الصرافة" style="width:100%;border:none;outline:none;background:none;resize:none;min-height:40px"></textarea>
+     <div class="caprow">
+       <button class="chipmini" id="finMic">🎙</button>
+       <button class="chipmini" id="finAI">${settings.finAI?'بالذكاء ✓':'محلي'}</button>
+       <button class="send" id="finAdd">سجّل</button>
+     </div>
+   </div>
+   ${keys.length?`<div class="balgrid">${keys.map(k=>{const [a,c]=k.split('|');
+     return `<div class="balcard"><b>${esc(a)} · ${CURN[c]}</b><div class="v ${b[k]<0?'neg':''}">${fmtMoney(b[k])}</div></div>`}).join('')}</div>`:''}
+   ${Object.keys(spent).length||Object.keys(income).length?`<div class="box" style="margin-bottom:12px">
+     <b style="font-size:13px">هذا الشهر</b>
+     ${Object.keys(income).map(c=>`<div style="display:flex;margin-top:4px"><span>دخل</span><span class="amt in" style="margin-inline-start:auto;direction:ltr;color:var(--done)">+${fmtMoney(income[c])} ${CURN[c]}</span></div>`).join('')}
+     ${Object.keys(spent).map(c=>`<div style="display:flex;margin-top:4px"><span>مصروف</span><span style="margin-inline-start:auto;direction:ltr;color:var(--urgent)">−${fmtMoney(spent[c])} ${CURN[c]}</span></div>`).join('')}
+     ${Object.keys(spent).map(c=>`<div style="display:flex;margin-top:4px;color:var(--ink-3);font-size:13px"><span>متوسط يومي</span><span style="margin-inline-start:auto;direction:ltr">${fmtMoney(spent[c]/day)} ${CURN[c]}</span></div>`).join('')}
+   </div>`:''}
+   <div class="mapbar">
+     <button class="act pri" id="finRep">التقارير والجداول</button>
+     <button class="act" id="finCsv">تصدير CSV</button>
+     <button class="act" id="finLock">اقفل</button>
+   </div>
+   ${fin.txs.filter(t=>finScope==='الكل'||t.scope===finScope).slice(0,60).map(t=>`
+     <div class="ftx" data-tx="${t.id}">
+       <div><span>${esc(t.cat||t.note.slice(0,28))}</span>
+         <small>${esc(t.acct)} · ${esc(t.scope)} · ${fmtDate(t.at)}${t.kind==='set'?' · تعيين رصيد':''}</small></div>
+       <span class="amt ${t.kind==='in'?'in':t.kind==='out'?'out':''}">${t.kind==='in'?'+':t.kind==='out'?'−':'='}${fmtMoney(t.amount)} ${CURN[t.cur]}</span>
+       <button class="act" data-fdel="${t.id}">✕</button>
+     </div>`).join('')||`<div class="empty"><div class="big">₪</div><p>لا معاملات بعد</p>
+       <p style="font-size:13px">اكتب أو قل: «قبضت ٥٠٠٠ ريال راتب في البنك»</p></div>`}`;
+  const ta=$('#finIn');
+  ta.addEventListener('input',()=>{ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,140)+'px'});
+}
+$('#paneFin').addEventListener('click',async e=>{
+  const sc=e.target.closest('[data-scope]');
+  if(sc){finScope=sc.dataset.scope;return renderFin()}
+  const del=e.target.closest('[data-fdel]');
+  if(del){if(confirm('حذف المعاملة؟')){fin.txs=fin.txs.filter(t=>t.id!==del.dataset.fdel);await finSave();renderFin()}return}
+  if(e.target.id==='finAdd'){const v=$('#finIn').value.trim();if(!v)return;$('#finIn').value='';return addFinText(v,settings.finAI)}
+  if(e.target.id==='finAI'){settings.finAI=!settings.finAI;saveSettings();renderFin();
+    return toast(settings.finAI?'التحليل بالذكاء — تُرسل الجملة فقط':'تحليل محلي — لا يخرج شيء من جهازك')}
+  if(e.target.id==='finMic')return micToggle(e.target,t=>{const i=$('#finIn');i.value=(i.value?i.value+' ':'')+t});
+  if(e.target.id==='finLock'){finKey=null;finLoaded=false;fin={txs:[],accounts:['بنك','كاش','الصرافة'],updatedAt:0};
+    toast('اتقفل القسم المالي');return renderFin()}
+  if(e.target.id==='finCsv')return finCsv();
+  if(e.target.id==='finRep')return finReport();
+});
+function finCsv(){
+  const rows=[['التاريخ','النوع','المبلغ','العملة','الحساب','النطاق','البند','النص']];
+  fin.txs.forEach(t=>rows.push([new Date(t.at).toISOString().slice(0,10),
+    t.kind==='in'?'دخل':t.kind==='set'?'رصيد':'مصروف',t.amount,t.cur,t.acct,t.scope,t.cat||'',(t.note||'').replace(/[\n,]/g,' ')]));
+  download(`afkary-money-${today()}.csv`,'\ufeff'+rows.map(r=>r.join(',')).join('\n'),'text/csv');
+  toast('نزل الجدول');
+}
+function finReport(){
+  const mk=monthKey(Date.now());
+  const prevD=new Date();prevD.setMonth(prevD.getMonth()-1);const pk=monthKey(prevD.getTime());
+  const scopes=finScope==='الكل'?['شخصي','مؤسسة']:[finScope];
+  let html='<h2>التقارير</h2>';
+  scopes.forEach(sc=>{
+    const cur=fin.txs.filter(t=>t.scope===sc&&monthKey(t.at)===mk);
+    const prv=fin.txs.filter(t=>t.scope===sc&&monthKey(t.at)===pk);
+    const byCat={};cur.filter(t=>t.kind==='out').forEach(t=>{
+      const k=(t.cat||'غير مصنّف')+'|'+t.cur;byCat[k]=(byCat[k]||0)+t.amount});
+    const inc={};cur.filter(t=>t.kind==='in').forEach(t=>{
+      const k=(t.cat||'دخل')+'|'+t.cur;inc[k]=(inc[k]||0)+t.amount});
+    const sum=(a,k)=>a.filter(t=>t.kind===k).reduce((x,t)=>x+t.amount,0);
+    html+=`<h3>${sc}</h3>`;
+    html+=Object.keys(byCat).length?`<table class="ftbl"><tr><th>بند المصروف</th><th class="num">المبلغ</th></tr>
+      ${Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>{const [c,cu]=k.split('|');
+        return `<tr><td>${esc(c)}</td><td class="num">${fmtMoney(v)} ${CURN[cu]}</td></tr>`}).join('')}</table>`
+      :'<p class="hint">لا مصروفات هذا الشهر</p>';
+    html+=Object.keys(inc).length?`<table class="ftbl"><tr><th>مصدر الدخل</th><th class="num">المبلغ</th></tr>
+      ${Object.entries(inc).sort((a,b)=>b[1]-a[1]).map(([k,v])=>{const [c,cu]=k.split('|');
+        return `<tr><td>${esc(c)}</td><td class="num">${fmtMoney(v)} ${CURN[cu]}</td></tr>`}).join('')}</table>`:'';
+    const c1=sum(cur,'out'),p1=sum(prv,'out');
+    html+=`<p class="hint">إنفاق الشهر: ${fmtMoney(c1)} · الشهر الماضي: ${fmtMoney(p1)}${p1?` · التغيّر ${c1>p1?'+':''}${Math.round((c1-p1)/p1*100)}%`:''}</p>`;
+  });
+  html+='<button class="btn sec" id="repCsv">تصدير CSV</button>';
+  openSheet(html);
+  $('#repCsv').onclick=finCsv;
+}
+
 /* ===== الاجتماعات: تسجيل وتفريغ وتحليل ===== */
 function renderMeet(){
   $('#paneMeet').innerHTML=`<button class="btn" id="mNew" style="margin:0 0 12px">🎙 سجّل اجتماعاً</button>`+
@@ -876,6 +1177,7 @@ $('#rBtn').onclick=async()=>{
     mediaRec.ondataavailable=ev=>{if(ev.data&&ev.data.size)chunks.push(ev.data)};
     mediaRec.onstop=async()=>{
       clearInterval(recTimer);
+      keepAwake(false);
       stream.getTracks().forEach(t=>t.stop());
       const blob=new Blob(chunks,{type:mediaRec.mimeType||'audio/mp4'});
       mediaRec=null;chunks=[];
@@ -883,6 +1185,7 @@ $('#rBtn').onclick=async()=>{
       await processAudio(blob,recTitle,recSecs);
     };
     mediaRec.start(1000);
+    keepAwake(true);
     recStart=Date.now();
     $('#rBtn').classList.add('rec');$('#rIcon').textContent='■';$('#rState').textContent='يسجّل… اضغط للإيقاف';
     recTimer=setInterval(()=>{recSecs=Math.floor((Date.now()-recStart)/1000);
@@ -1032,6 +1335,7 @@ function go(where){
   $('#paneMap').classList.toggle('on',isN&&view==='map');
   $('#paneJournal').classList.toggle('on',where==='journal');
   $('#paneMeet').classList.toggle('on',where==='meet');
+  $('#paneFin').classList.toggle('on',where==='fin');
   $('#paneBoards').classList.toggle('on',where==='boards');
   $('#paneChat').classList.toggle('on',where==='chat');
   $('#captureWrap').style.display=isN?'':'none';
@@ -1041,6 +1345,7 @@ function go(where){
   if(where==='boards')renderBoards();
   if(where==='journal')renderJournal();
   if(where==='meet')renderMeet();
+  if(where==='fin')renderFin();
   if(where==='chat')renderChat();
   if(isN)renderNotes();
 }
@@ -1171,6 +1476,18 @@ async function ask(){
   let t=thread();
   if(!t)t=newThread(q.slice(0,30));
   t.msgs.push({r:'me',t:q});t.updatedAt=Date.now();save();renderChat();
+  if(/رصيد|رصيدي|فلوس|مصروف|إنفاق|انفاق|صرفت|دخل|مصاريف/.test(q)&&finLoaded){
+    const b=balances('الكل'),mk=monthKey(Date.now());
+    const mt=fin.txs.filter(t=>monthKey(t.at)===mk);
+    const sp={},ic={};
+    mt.forEach(t=>{if(t.kind==='out')sp[t.cur]=(sp[t.cur]||0)+t.amount;if(t.kind==='in')ic[t.cur]=(ic[t.cur]||0)+t.amount});
+    const day=new Date().getDate();
+    let r='الأرصدة:\n'+Object.keys(b).map(k=>{const [a,c]=k.split('|');return `• ${a} — ${fmtMoney(b[k])} ${CURN[c]}`}).join('\n');
+    r+='\n\nهذا الشهر:\n'+Object.keys(ic).map(c=>`• دخل: ${fmtMoney(ic[c])} ${CURN[c]}`).join('\n');
+    r+='\n'+Object.keys(sp).map(c=>`• مصروف: ${fmtMoney(sp[c])} ${CURN[c]} (متوسط يومي ${fmtMoney(sp[c]/day)})`).join('\n');
+    r+='\n\n(محسوبة على جهازك — لم تُرسل أي أرقام)';
+    t.msgs.push({r:'ai',t:r});save();renderChat();return;
+  }
   if(/^(دور|دوّر|ابحث|فين|لاقي)/.test(q)&&!/نت|الإنترنت|الانترنت|جوجل|النت/.test(q)){
     const term=q.replace(/^(دور|دوّر|ابحث|فين|لاقي)\s*(في ملاحظاتي)?\s*(عن)?\s*/,'').trim();
     const hits=notes.filter(n=>n.text.includes(term));
@@ -1261,6 +1578,7 @@ function openSettings(note){
     notes=[];boards=[];journals=[];threads=[];meetings=[];curThread=null;mapData=null;mnodes=[];
     prof={summary:'',projects:[],goals:[],people:[],style:'',at:Date.now()};
     saveLocal();store.set('afk_map',null);store.set('afk_brief',{date:'',text:''});
+    store.set('afk_fin',null);store.set('afk_fin_salt','');fin={txs:[],accounts:['بنك','كاش','الصرافة'],updatedAt:0};finKey=null;finLoaded=false;
     $('#sheet').classList.remove('on');go('notes')}};
 }
 function download(n,c,t){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([c],{type:t}));
