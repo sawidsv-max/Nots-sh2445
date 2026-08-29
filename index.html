@@ -542,6 +542,7 @@ function noteCard(n){
      ${n.tags.map(t=>`<span class="tag">#${esc(t)}</span>`).join('')}
      <span class="tag date">${fmtDate(n.createdAt)}</span>
      <span class="acts">
+       <button class="act" data-a="edit">تعديل</button>
        <button class="act" data-a="cat">تصنيف</button>
        <button class="act" data-a="cycle">أولوية</button>
        <button class="act" data-a="break">فكّك</button>
@@ -682,7 +683,9 @@ function openNote(n){
    ${n.ai?`<div class="aibox">${esc(n.ai)}</div>`:''}
    <div class="rowbtns"><button class="btn row sec" id="nAi">حلّلها</button>
    <button class="btn row sec" id="nBr">فكّكها</button>
-   <button class="btn row" id="nDone">${n.status==='done'?'رجّعها':'تم'}</button></div>`);
+   <button class="btn row" id="nDone">${n.status==='done'?'رجّعها':'تم'}</button></div>
+   <button class="btn sec" id="nEdit">تعديل النص</button>`);
+  $('#nEdit').onclick=()=>editNote(n);
   $('#nDone').onclick=()=>{n.status=n.status==='done'?'open':'done';n.doneAt=Date.now();n.updatedAt=Date.now();
     save();$('#sheet').classList.remove('on');mnodes=[];renderNotes()};
   $('#nAi').onclick=e=>analyzeOne(n,e.target);
@@ -726,6 +729,7 @@ $('#paneNotes').addEventListener('click',e=>{
   const btn=e.target.closest('.act');if(!btn)return;
   const n=notes.find(x=>x.id===btn.closest('.card').dataset.id);if(!n)return;
   const a=btn.dataset.a;
+  if(a==='edit')return editNote(n);
   if(a==='cat')return pickCat(n);
   if(a==='break')return breakDown(n,btn);
   if(a==='ai')return analyzeOne(n,btn);
@@ -734,6 +738,37 @@ $('#paneNotes').addEventListener('click',e=>{
   if(a==='del'){if(confirm('حذف هذه الملاحظة؟')){notes=notes.filter(x=>x.id!==n.id);deleted.push({id:n.id,at:Date.now()})}}
   save();mnodes=[];renderNotes();
 });
+function editNote(n){
+  openSheet(`<h2>تعديل</h2>
+   <label class="f">النص</label>
+   <textarea class="inp" id="edText" style="min-height:130px">${esc(n.text)}</textarea>
+   <label class="f">النوع</label>
+   <select class="inp" id="edType">${['فكرة','مهمة','ملاحظة','تنبيه'].map(x=>`<option ${n.type===x?'selected':''}>${x}</option>`).join('')}</select>
+   <label class="f">الأولوية</label>
+   <select class="inp" id="edPri">${['عاجل','مهم','مؤجل'].map(x=>`<option ${n.priority===x?'selected':''}>${x}</option>`).join('')}</select>
+   <label class="f">التصنيف</label>
+   <input class="inp" id="edCat" value="${esc(n.cat||'')}" placeholder="بلا تصنيف">
+   <label class="f">التاريخ والوقت</label>
+   <input class="inp" id="edAt" type="datetime-local" value="${toLocalInput(n.createdAt)}" style="direction:ltr">
+   <label class="f" style="display:flex;align-items:center;gap:9px">
+     <input type="checkbox" id="edPriv" ${n.private?'checked':''} style="width:18px;height:18px"> 🔒 خاصة — لا تُرسل لأي مزوّد</label>
+   ${n.ai?`<label class="f">تحليل المساعد</label><div class="aibox">${esc(n.ai)}</div>
+     <button class="btn sec" id="edClearAi">امسح التحليل</button>`:''}
+   <div class="rowbtns"><button class="btn row danger" id="edDel">حذف</button>
+     <button class="btn row" id="edSave">حفظ</button></div>`);
+  $('#edSave').onclick=()=>{
+    const v=$('#edText').value.trim(); if(!v)return toast('النص فاضي');
+    n.text=v; n.type=$('#edType').value; n.priority=$('#edPri').value;
+    n.cat=$('#edCat').value.trim(); n.private=$('#edPriv').checked;
+    const d=$('#edAt').value; if(d)n.createdAt=new Date(d).getTime();
+    const c=classify(v); n.tags=c.tags; n.links=c.links;
+    n.updatedAt=Date.now(); save(); $('#sheet').classList.remove('on'); mnodes=[]; renderNotes(); toast('اتحفظ التعديل');
+  };
+  if(n.ai)$('#edClearAi').onclick=()=>{n.ai='';n.updatedAt=Date.now();save();$('#sheet').classList.remove('on');renderNotes()};
+  $('#edDel').onclick=()=>{if(!confirm('حذف الملاحظة؟'))return;
+    notes=notes.filter(x=>x.id!==n.id);deleted.push({id:n.id,at:Date.now()});
+    save();$('#sheet').classList.remove('on');mnodes=[];renderNotes()};
+}
 function pickCat(n){
   const cats=catList();
   openSheet(`<h2>تصنيف الملاحظة</h2><div class="box">${esc(n.text.slice(0,120))}</div>
@@ -792,6 +827,7 @@ $('#paneJournal').addEventListener('click',e=>{
 });
 function openJ(j=null){
   curJ=j;$('#jTitle').value=j?(j.title||''):'';$('#jBody').value=j?(j.body||''):'';
+  if(j)toast('تعدّل النص واحفظ بـ ✓');
   $('#jrn').classList.add('on');setTimeout(()=>$('#jBody').focus(),150);
 }
 $('#jClose').onclick=()=>$('#jrn').classList.remove('on');
@@ -889,7 +925,7 @@ $('#jMic').onclick=e=>micToggle(e.currentTarget,t=>{
   const b=$('#jBody');b.value=(b.value?b.value+'\n':'')+t;b.focus()});
 
 /* ================= القسم المالي (مشفَّر محلياً) ================= */
-let fin={txs:[],accounts:['بنك','كاش','الصرافة'],updatedAt:0};
+let fin={txs:[],plans:[],accounts:['بنك','كاش','الصرافة'],updatedAt:0};
 let finKey=null, finLoaded=false;
 const CURS=['SAR','EGP','USD'];
 const CURN={SAR:'ريال',EGP:'جنيه',USD:'دولار'};
@@ -1079,8 +1115,121 @@ const fmtDT=ts=>new Date(ts).toLocaleDateString('ar-EG',{weekday:'short',day:'nu
   new Date(ts).toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'});
 const toLocalInput=ts=>new Date(ts-new Date(ts).getTimezoneOffset()*60000).toISOString().slice(0,16);
 function monthKey(ts){const d=new Date(ts);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
+
+/* ===== الالتزامات الدورية والأقساط ===== */
+function ensurePlans(){if(!fin.plans)fin.plans=[]}
+const addMonths=(ts,n)=>{const d=new Date(ts);const day=d.getDate();d.setMonth(d.getMonth()+n);
+  if(d.getDate()<day)d.setDate(0);return d.getTime()};
+function planRemaining(p){
+  if(!p.total)return null;
+  return Math.max(0,p.total-(p.paid||0));
+}
+function planDue(p){/* مستحق أو فات موعده */
+  return p.active!==false && p.next && p.next<=Date.now()+0 && (!p.total||(p.paid||0)<p.total);
+}
+function planSoon(p){
+  return p.active!==false && p.next && p.next>Date.now() && p.next<Date.now()+3*86400000;
+}
+async function payPlan(p,skip){
+  if(!skip){
+    const tx={id:uid(),kind:'out',amount:p.amount,cur:p.cur,acct:p.acct,scope:p.scope,
+      cat:p.cat||'التزامات',note:`${p.title}${p.total?` — قسط ${(p.paid||0)+1} من ${p.total}`:''}`,
+      planId:p.id,at:p.next||Date.now(),createdAt:Date.now(),updatedAt:Date.now()};
+    fin.txs.unshift(tx);
+  }
+  p.paid=(p.paid||0)+(skip?0:1);
+  p.next=addMonths(p.next||Date.now(),p.every||1);
+  if(p.total&&(p.paid||0)>=p.total)p.active=false;
+  await finSave();renderFin();
+  toast(skip?'اتأجل للشهر الجاي':`اتسجّل ${fmtMoney(p.amount)} ${CURN[p.cur]}${p.total?` — باقي ${p.total-p.paid} قسط`:''}`);
+}
+function planEditor(p){
+  const isNew=!p;
+  const n=new Date();n.setDate(n.getDate()+1);
+  p=p||{id:uid(),title:'',amount:0,cur:settings.finCur||'SAR',acct:'بنك',scope:'شخصي',cat:'التزامات',
+    every:1,total:0,paid:0,next:n.getTime(),auto:false,active:true,createdAt:Date.now(),updatedAt:Date.now()};
+  openSheet(`<h2>${isNew?'التزام جديد':'تعديل الالتزام'}</h2>
+   <p class="hint">قسط، إيجار، اشتراك، راتب ثابت… يُذكّرك في موعده ويُسجَّل بضغطة.</p>
+   <label class="f">الاسم</label><input class="inp" id="plT" value="${esc(p.title)}" placeholder="قسط جهاز التابلت">
+   <label class="f">المبلغ الشهري</label>
+   <input class="inp" id="plA" type="number" step="0.01" inputmode="decimal" value="${p.amount||''}" style="direction:ltr">
+   <label class="f">العملة</label>
+   <select class="inp" id="plC">${CURS.map(c=>`<option value="${c}" ${p.cur===c?'selected':''}>${CURN[c]}</option>`).join('')}</select>
+   <label class="f">الحساب</label>
+   <input class="inp" id="plAc" value="${esc(p.acct)}" list="acctList2">
+   <datalist id="acctList2">${fin.accounts.map(a=>`<option value="${esc(a)}">`).join('')}</datalist>
+   <label class="f">النطاق</label>
+   <select class="inp" id="plS"><option ${p.scope==='شخصي'?'selected':''}>شخصي</option><option ${p.scope==='مؤسسة'?'selected':''}>مؤسسة</option></select>
+   <label class="f">عدد الأقساط الكلي (اتركه 0 لالتزام مفتوح كالإيجار)</label>
+   <input class="inp" id="plN" type="number" value="${p.total||0}" style="direction:ltr">
+   <label class="f">المدفوع منها حتى الآن</label>
+   <input class="inp" id="plP" type="number" value="${p.paid||0}" style="direction:ltr">
+   <label class="f">موعد القسط القادم</label>
+   <input class="inp" id="plD" type="date" value="${new Date(p.next).toISOString().slice(0,10)}" style="direction:ltr">
+   <label class="f">كل كم شهر</label>
+   <input class="inp" id="plE" type="number" value="${p.every||1}" style="direction:ltr">
+   <label class="f" style="display:flex;align-items:center;gap:9px">
+     <input type="checkbox" id="plAuto" ${p.auto?'checked':''} style="width:18px;height:18px">
+     يُخصم تلقائياً من الحساب — سجّله بنفسك بلا سؤال</label>
+   <p class="hint">مطفي = يسألك «اتدفع؟» في موعده. مشغّل = يتسجّل لوحده يوم الاستحقاق.</p>
+   <div class="rowbtns">${isNew?'':'<button class="btn row danger" id="plDel">حذف</button>'}
+     <button class="btn row" id="plSave">حفظ</button></div>`);
+  $('#plSave').onclick=async()=>{
+    p.title=$('#plT').value.trim()||'التزام';
+    p.amount=parseFloat($('#plA').value)||0;
+    if(!p.amount)return toast('اكتب المبلغ');
+    p.cur=$('#plC').value;p.acct=$('#plAc').value.trim()||'بنك';p.scope=$('#plS').value;
+    p.total=parseInt($('#plN').value)||0;p.paid=parseInt($('#plP').value)||0;
+    p.every=parseInt($('#plE').value)||1;p.auto=$('#plAuto').checked;
+    const d=$('#plD').value;if(d){const dd=new Date(d+'T09:00');p.next=dd.getTime()}
+    p.active=!(p.total&&p.paid>=p.total);p.updatedAt=Date.now();
+    ensurePlans();if(!fin.plans.find(x=>x.id===p.id))fin.plans.unshift(p);
+    if(!fin.accounts.includes(p.acct))fin.accounts.push(p.acct);
+    await finSave();$('#sheet').classList.remove('on');renderFin();toast('اتحفظ الالتزام');
+  };
+  if(!isNew)$('#plDel').onclick=async()=>{if(!confirm('حذف الالتزام؟ المعاملات المسجَّلة تفضل.'))return;
+    fin.plans=fin.plans.filter(x=>x.id!==p.id);await finSave();$('#sheet').classList.remove('on');renderFin()};
+}
+async function runAutoPlans(){
+  ensurePlans();let did=0;
+  for(const p of fin.plans){
+    let guard=0;
+    while(p.auto&&planDue(p)&&guard++<24){await payPlan(p,false);did++}
+  }
+  if(did)toast(`اتسجّل ${did} قسط تلقائي`);
+}
+function plansHTML(){
+  ensurePlans();
+  const act=fin.plans.filter(p=>p.active!==false&&(finScope==='الكل'||p.scope===finScope));
+  if(!act.length)return '';
+  const due=act.filter(planDue),soon=act.filter(planSoon);
+  return `${due.map(p=>`<div class="followup" data-plan="${p.id}">
+      <h3>${esc(p.title)} — مستحق</h3>
+      <p>${fmtMoney(p.amount)} ${CURN[p.cur]} من ${esc(p.acct)}${p.total?` · قسط ${(p.paid||0)+1} من ${p.total}`:''}
+      · موعده ${new Date(p.next).toLocaleDateString('ar-EG',{day:'numeric',month:'short'})}</p>
+      <div class="fu-actions"><button class="act pri" data-pact="pay">اتدفع</button>
+        <button class="act" data-pact="skip">أجّله شهر</button>
+        <button class="act" data-pact="edit">تعديل</button></div></div>`).join('')}
+    <div class="box" style="margin-bottom:12px">
+      <div style="display:flex;align-items:center"><b style="font-size:13px">الالتزامات الشهرية</b>
+        <button class="act" id="planNew" style="margin-inline-start:auto">＋ التزام</button></div>
+      ${act.map(p=>{const rem=planRemaining(p);
+        return `<div style="display:flex;align-items:center;gap:8px;margin-top:8px" data-plan="${p.id}">
+          <div style="min-width:0"><span>${esc(p.title)}</span>
+            <small style="display:block;font-size:11px;color:var(--ink-3)">
+              ${esc(p.acct)} · ${new Date(p.next).toLocaleDateString('ar-EG',{day:'numeric',month:'short'})}
+              ${p.total?` · باقي ${rem} من ${p.total}`:' · مفتوح'}${p.auto?' · تلقائي':''}${planSoon(p)?' · قريب':''}</small></div>
+          <span style="margin-inline-start:auto;direction:ltr;white-space:nowrap">${fmtMoney(p.amount)} ${CURN[p.cur]}</span>
+          <button class="act" data-pact="edit">⋯</button></div>`}).join('')}
+      ${(()=>{const t={};act.forEach(p=>t[p.cur]=(t[p.cur]||0)+p.amount);
+        return `<p class="hint" style="margin-top:10px">مرتبط شهرياً: ${Object.keys(t).map(c=>fmtMoney(t[c])+' '+CURN[c]).join(' · ')}</p>`})()}
+    </div>`;
+}
+
 function renderFin(){
   if(!finLoaded)return finGate();
+  ensurePlans();
+  if(!renderFin._auto){renderFin._auto=true;setTimeout(runAutoPlans,300)}
   const b=balances(finScope);
   const keys=Object.keys(b);
   const mk=monthKey(Date.now());
@@ -1101,6 +1250,7 @@ function renderFin(){
    </div>
    ${keys.length?`<div class="balgrid">${keys.map(k=>{const [a,c]=k.split('|');
      return `<div class="balcard"><b>${esc(a)} · ${CURN[c]}</b><div class="v ${b[k]<0?'neg':''}">${fmtMoney(b[k])}</div></div>`}).join('')}</div>`:''}
+   ${plansHTML()}
    ${Object.keys(spent).length||Object.keys(income).length?`<div class="box" style="margin-bottom:12px">
      <b style="font-size:13px">هذا الشهر</b>
      ${Object.keys(income).map(c=>`<div style="display:flex;margin-top:4px"><span>دخل</span><span class="amt in" style="margin-inline-start:auto;direction:ltr;color:var(--done)">+${fmtMoney(income[c])} ${CURN[c]}</span></div>`).join('')}
@@ -1109,6 +1259,7 @@ function renderFin(){
    </div>`:''}
    <div class="mapbar">
      <button class="act pri" id="finRep">التقارير والجداول</button>
+     <button class="act" id="planAdd">＋ التزام</button>
      <button class="act" id="finCsv">تصدير CSV</button>
      <button class="act" id="finLock">اقفل</button>
    </div>
@@ -1133,8 +1284,17 @@ $('#paneFin').addEventListener('click',async e=>{
   if(e.target.id==='finAI'){settings.finAI=!settings.finAI;saveSettings();renderFin();
     return toast(settings.finAI?'التحليل بالذكاء — تُرسل الجملة فقط':'تحليل محلي — لا يخرج شيء من جهازك')}
   if(e.target.id==='finMic')return micToggle(e.target,t=>{const i=$('#finIn');i.value=(i.value?i.value+' ':'')+t});
-  if(e.target.id==='finLock'){finKey=null;finLoaded=false;fin={txs:[],accounts:['بنك','كاش','الصرافة'],updatedAt:0};
+  if(e.target.id==='finLock'){finKey=null;finLoaded=false;fin={txs:[],plans:[],accounts:['بنك','كاش','الصرافة'],updatedAt:0};
     toast('اتقفل القسم المالي');return renderFin()}
+  const pa=e.target.closest('[data-pact]');
+  if(pa){
+    const holder=pa.closest('[data-plan]');const p=(fin.plans||[]).find(x=>x.id===holder.dataset.plan);
+    if(!p)return;
+    if(pa.dataset.pact==='pay')return payPlan(p,false);
+    if(pa.dataset.pact==='skip')return payPlan(p,true);
+    if(pa.dataset.pact==='edit')return planEditor(p);
+  }
+  if(e.target.id==='planNew'||e.target.id==='planAdd')return planEditor(null);
   if(e.target.id==='finCsv')return finCsv();
   if(e.target.id==='finRep')return finReport();
 });
@@ -1209,6 +1369,17 @@ function finReport(){
     const c1=sum(cur,'out'),p1=sum(prv,'out');
     html+=`<p class="hint">إنفاق الشهر: ${fmtMoney(c1)} · الشهر الماضي: ${fmtMoney(p1)}${p1?` · التغيّر ${c1>p1?'+':''}${Math.round((c1-p1)/p1*100)}%`:''}</p>`;
   });
+  const pl=(fin.plans||[]).filter(p=>p.active!==false);
+  if(pl.length){
+    html+='<h3>الالتزامات الشهرية</h3><table class="ftbl"><tr><th>الالتزام</th><th>الموعد</th><th class="num">المبلغ</th></tr>'+
+      pl.map(p=>`<tr><td>${esc(p.title)}${p.total?` <span style="color:var(--ink-3)">(باقي ${planRemaining(p)})</span>`:''}</td>
+        <td>${new Date(p.next).toLocaleDateString('ar-EG',{day:'numeric',month:'short'})}</td>
+        <td class="num">${fmtMoney(p.amount)} ${CURN[p.cur]}</td></tr>`).join('')+'</table>';
+    const tot={};pl.forEach(p=>tot[p.cur]=(tot[p.cur]||0)+p.amount);
+    const rem={};pl.filter(p=>p.total).forEach(p=>rem[p.cur]=(rem[p.cur]||0)+planRemaining(p)*p.amount);
+    html+=`<p class="hint">إجمالي شهري: ${Object.keys(tot).map(c=>fmtMoney(tot[c])+' '+CURN[c]).join(' · ')}`+
+      (Object.keys(rem).length?` · إجمالي المتبقي على الأقساط: ${Object.keys(rem).map(c=>fmtMoney(rem[c])+' '+CURN[c]).join(' · ')}`:'')+'</p>';
+  }
   html+='<button class="btn sec" id="repCsv">تصدير CSV</button>';
   openSheet(html);
   $('#repCsv').onclick=finCsv;
@@ -1252,9 +1423,27 @@ function openMeet(m){
    <h3>التفريغ الكامل</h3>
    <div class="box" style="max-height:300px;overflow:auto;white-space:pre-wrap">${esc(m.transcript||'—')}</div>
    <div class="rowbtns"><button class="btn row sec" id="mCopy">انسخ النص</button>
-     <button class="btn row" id="mTasks">استخرج مهام</button></div>`);
+     <button class="btn row" id="mTasks">استخرج مهام</button></div>
+   <button class="btn sec" id="mEdit">تعديل الاجتماع</button>`);
+  $('#mEdit').onclick=()=>editMeet(m);
   $('#mCopy').onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(m.transcript||'');toast('اتنسخ')};
   $('#mTasks').onclick=e=>meetTasks(m,e.target);
+}
+function editMeet(m){
+  openSheet(`<h2>تعديل الاجتماع</h2>
+   <label class="f">العنوان</label><input class="inp" id="meTitle" value="${esc(m.title||'')}">
+   <label class="f">التاريخ والوقت</label>
+   <input class="inp" id="meAt" type="datetime-local" value="${toLocalInput(m.createdAt)}" style="direction:ltr">
+   <label class="f">الخلاصة</label><textarea class="inp" id="meSum">${esc(m.summary||'')}</textarea>
+   <label class="f">التفريغ</label><textarea class="inp" id="meTr" style="min-height:180px">${esc(m.transcript||'')}</textarea>
+   <div class="rowbtns"><button class="btn row danger" id="meDel">حذف</button>
+     <button class="btn row" id="meSave">حفظ</button></div>`);
+  $('#meSave').onclick=()=>{m.title=$('#meTitle').value.trim();m.summary=$('#meSum').value.trim();
+    m.transcript=$('#meTr').value.trim();const d=$('#meAt').value;if(d)m.createdAt=new Date(d).getTime();
+    m.updatedAt=Date.now();save();$('#sheet').classList.remove('on');renderMeet();toast('اتحفظ التعديل')};
+  $('#meDel').onclick=()=>{if(!confirm('حذف الاجتماع؟'))return;
+    meetings=meetings.filter(x=>x.id!==m.id);deleted.push({id:m.id,at:Date.now()});
+    save();$('#sheet').classList.remove('on');renderMeet()};
 }
 /* التسجيل */
 let mediaRec=null,chunks=[],recStart=0,recTimer=null,recSecs=0,recTitle='';
@@ -1684,7 +1873,7 @@ function openSettings(note){
     notes=[];boards=[];journals=[];threads=[];meetings=[];curThread=null;mapData=null;mnodes=[];
     prof={summary:'',projects:[],goals:[],people:[],style:'',at:Date.now()};
     saveLocal();store.set('afk_map',null);store.set('afk_brief',{date:'',text:''});
-    store.set('afk_fin',null);store.set('afk_fin_salt','');fin={txs:[],accounts:['بنك','كاش','الصرافة'],updatedAt:0};finKey=null;finLoaded=false;
+    store.set('afk_fin',null);store.set('afk_fin_salt','');fin={txs:[],plans:[],accounts:['بنك','كاش','الصرافة'],updatedAt:0};finKey=null;finLoaded=false;
     $('#sheet').classList.remove('on');go('notes')}};
 }
 function download(n,c,t){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([c],{type:t}));
@@ -1716,7 +1905,11 @@ function bulkImport(){
     toast(`اتضافت ${l.length} ملاحظة`)};
 }
 function checkDue(){if(!('Notification'in window)||Notification.permission!=='granted')return;
-  const s=staleTasks();if(s.length)new Notification('أفكاري',{body:`${s.length} مهام متأخرة — أولها: ${s[0].text.slice(0,50)}`})}
+  const s=staleTasks();if(s.length)new Notification('أفكاري',{body:`${s.length} مهام متأخرة — أولها: ${s[0].text.slice(0,50)}`});
+  if(finLoaded&&fin.plans){
+    const d=fin.plans.filter(p=>p.active!==false&&!p.auto&&(planDue(p)||planSoon(p)));
+    if(d.length)new Notification('أفكاري — التزامات',{body:d.map(p=>`${p.title}: ${fmtMoney(p.amount)} ${CURN[p.cur]}`).join(' · ')});
+  }}
 
 /* ===== تشغيل ===== */
 go('notes');
