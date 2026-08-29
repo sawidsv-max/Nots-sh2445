@@ -978,7 +978,12 @@ function parseFin(raw){
     'صحة':/دواء|صيدلية|طبيب|علاج|مستشفى/,
     'اتصالات':/شحن|رصيد جوال|باقة|اتصالات|stc|موبايلي/};
   for(const k in CATS)if(CATS[k].test(t)){cat=k;break}
-  return {id:uid(),kind,amount,cur,acct,scope,cat,note:raw.trim(),at:Date.now(),createdAt:Date.now(),updatedAt:Date.now()};
+  let at=Date.now();
+  if(/أول امبارح|أول أمس|اول امبارح/.test(t))at-=2*86400000;
+  else if(/امبارح|أمس|البارحة/.test(t))at-=86400000;
+  else if(/الأسبوع الماضي|الاسبوع الماضي|الأسبوع اللي فات/.test(t))at-=7*86400000;
+  else if(/الشهر الماضي|الشهر اللي فات/.test(t)){const d=new Date();d.setMonth(d.getMonth()-1);at=d.getTime()}
+  return {id:uid(),kind,amount,cur,acct,scope,cat,note:raw.trim(),at,createdAt:Date.now(),updatedAt:Date.now()};
 }
 async function addFinText(raw,useAI){
   let tx=parseFin(raw);
@@ -1013,6 +1018,9 @@ function balances(scope){
   return b;
 }
 const fmtMoney=n=>Math.round(n).toLocaleString('en-US');
+const fmtDT=ts=>new Date(ts).toLocaleDateString('ar-EG',{weekday:'short',day:'numeric',month:'short'})+' · '+
+  new Date(ts).toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'});
+const toLocalInput=ts=>new Date(ts-new Date(ts).getTimezoneOffset()*60000).toISOString().slice(0,16);
 function monthKey(ts){const d=new Date(ts);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
 function renderFin(){
   if(!finLoaded)return finGate();
@@ -1027,7 +1035,7 @@ function renderFin(){
   $('#paneFin').innerHTML=`
    <div class="scoperow">${['الكل','شخصي','مؤسسة'].map(x=>`<button class="vbtn ${finScope===x?'on':''}" data-scope="${x}">${x}</button>`).join('')}</div>
    <div class="capbox" style="margin-bottom:12px">
-     <textarea id="finIn" rows="1" placeholder="مثال: صرفت ٣٠٠ ريال على بنزين من الصرافة" style="width:100%;border:none;outline:none;background:none;resize:none;min-height:40px"></textarea>
+     <textarea id="finIn" rows="1" placeholder="مثال: صرفت ٣٠٠ ريال على بنزين من الصرافة — أو: امبارح دفعت ٥٠٠ إيجار" style="width:100%;border:none;outline:none;background:none;resize:none;min-height:40px"></textarea>
      <div class="caprow">
        <button class="chipmini" id="finMic">🎙</button>
        <button class="chipmini" id="finAI">${settings.finAI?'بالذكاء ✓':'محلي'}</button>
@@ -1049,10 +1057,11 @@ function renderFin(){
    </div>
    ${fin.txs.filter(t=>finScope==='الكل'||t.scope===finScope).slice(0,60).map(t=>`
      <div class="ftx" data-tx="${t.id}">
-       <div><span>${esc(t.cat||t.note.slice(0,28))}</span>
-         <small>${esc(t.acct)} · ${esc(t.scope)} · ${fmtDate(t.at)}${t.kind==='set'?' · تعيين رصيد':''}</small></div>
+       <div style="min-width:0"><span>${esc(t.cat||(t.note||'').slice(0,30)||'معاملة')}</span>
+         <small>${esc(t.acct)} · ${esc(t.scope)}${t.kind==='set'?' · تعيين رصيد':''}</small>
+         <small>${fmtDT(t.at)}</small>
+         ${t.note&&t.cat?`<small style="opacity:.75">${esc(t.note.slice(0,60))}</small>`:''}</div>
        <span class="amt ${t.kind==='in'?'in':t.kind==='out'?'out':''}">${t.kind==='in'?'+':t.kind==='out'?'−':'='}${fmtMoney(t.amount)} ${CURN[t.cur]}</span>
-       <button class="act" data-fdel="${t.id}">✕</button>
      </div>`).join('')||`<div class="empty"><div class="big">₪</div><p>لا معاملات بعد</p>
        <p style="font-size:13px">اكتب أو قل: «قبضت ٥٠٠٠ ريال راتب في البنك»</p></div>`}`;
   const ta=$('#finIn');
@@ -1061,8 +1070,8 @@ function renderFin(){
 $('#paneFin').addEventListener('click',async e=>{
   const sc=e.target.closest('[data-scope]');
   if(sc){finScope=sc.dataset.scope;return renderFin()}
-  const del=e.target.closest('[data-fdel]');
-  if(del){if(confirm('حذف المعاملة؟')){fin.txs=fin.txs.filter(t=>t.id!==del.dataset.fdel);await finSave();renderFin()}return}
+  const row=e.target.closest('[data-tx]');
+  if(row){const t=fin.txs.find(x=>x.id===row.dataset.tx);if(t)return openTx(t)}
   if(e.target.id==='finAdd'){const v=$('#finIn').value.trim();if(!v)return;$('#finIn').value='';return addFinText(v,settings.finAI)}
   if(e.target.id==='finAI'){settings.finAI=!settings.finAI;saveSettings();renderFin();
     return toast(settings.finAI?'التحليل بالذكاء — تُرسل الجملة فقط':'تحليل محلي — لا يخرج شيء من جهازك')}
@@ -1072,9 +1081,49 @@ $('#paneFin').addEventListener('click',async e=>{
   if(e.target.id==='finCsv')return finCsv();
   if(e.target.id==='finRep')return finReport();
 });
+function openTx(t){
+  openSheet(`<h2>تفاصيل المعاملة</h2>
+   <label class="f">النوع</label>
+   <select class="inp" id="txKind">
+     <option value="out" ${t.kind==='out'?'selected':''}>مصروف</option>
+     <option value="in" ${t.kind==='in'?'selected':''}>دخل</option>
+     <option value="set" ${t.kind==='set'?'selected':''}>تعيين رصيد</option></select>
+   <label class="f">المبلغ</label>
+   <input class="inp" id="txAmt" type="number" inputmode="decimal" value="${t.amount}" style="direction:ltr">
+   <label class="f">العملة</label>
+   <select class="inp" id="txCur">${CURS.map(c=>`<option value="${c}" ${t.cur===c?'selected':''}>${CURN[c]}</option>`).join('')}</select>
+   <label class="f">الحساب</label>
+   <input class="inp" id="txAcct" value="${esc(t.acct)}" list="acctList">
+   <datalist id="acctList">${fin.accounts.map(a=>`<option value="${esc(a)}">`).join('')}</datalist>
+   <label class="f">النطاق</label>
+   <select class="inp" id="txScope">
+     <option ${t.scope==='شخصي'?'selected':''}>شخصي</option>
+     <option ${t.scope==='مؤسسة'?'selected':''}>مؤسسة</option></select>
+   <label class="f">البند</label>
+   <input class="inp" id="txCat" value="${esc(t.cat||'')}" placeholder="طعام، مواصلات، معدات…">
+   <label class="f">التاريخ والوقت</label>
+   <input class="inp" id="txAt" type="datetime-local" value="${toLocalInput(t.at)}" style="direction:ltr">
+   <label class="f">ملاحظات / التفاصيل</label>
+   <textarea class="inp" id="txNote">${esc(t.note||'')}</textarea>
+   <p class="hint">أُدخلت: ${fmtDT(t.createdAt||t.at)}</p>
+   <div class="rowbtns"><button class="btn row danger" id="txDel">حذف</button>
+     <button class="btn row" id="txSave">حفظ</button></div>`);
+  $('#txSave').onclick=async()=>{
+    t.kind=$('#txKind').value;t.amount=parseFloat($('#txAmt').value)||t.amount;t.cur=$('#txCur').value;
+    t.acct=$('#txAcct').value.trim()||t.acct;t.scope=$('#txScope').value;t.cat=$('#txCat').value.trim();
+    t.note=$('#txNote').value.trim();
+    const v=$('#txAt').value; if(v)t.at=new Date(v).getTime();
+    t.updatedAt=Date.now();
+    if(!fin.accounts.includes(t.acct))fin.accounts.push(t.acct);
+    await finSave();$('#sheet').classList.remove('on');renderFin();toast('اتحفظت');
+  };
+  $('#txDel').onclick=async()=>{if(!confirm('حذف المعاملة؟'))return;
+    fin.txs=fin.txs.filter(x=>x.id!==t.id);await finSave();$('#sheet').classList.remove('on');renderFin()};
+}
 function finCsv(){
-  const rows=[['التاريخ','النوع','المبلغ','العملة','الحساب','النطاق','البند','النص']];
+  const rows=[['التاريخ','الوقت','النوع','المبلغ','العملة','الحساب','النطاق','البند','ملاحظات']];
   fin.txs.forEach(t=>rows.push([new Date(t.at).toISOString().slice(0,10),
+    new Date(t.at).toTimeString().slice(0,5),
     t.kind==='in'?'دخل':t.kind==='set'?'رصيد':'مصروف',t.amount,t.cur,t.acct,t.scope,t.cat||'',(t.note||'').replace(/[\n,]/g,' ')]));
   download(`afkary-money-${today()}.csv`,'\ufeff'+rows.map(r=>r.join(',')).join('\n'),'text/csv');
   toast('نزل الجدول');
