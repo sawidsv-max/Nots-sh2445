@@ -9,6 +9,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="أفكاري">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Reem+Kufi:wght@500;600;700&display=swap" rel="stylesheet">
@@ -207,6 +210,48 @@ textarea.inp{min-height:90px;resize:vertical;line-height:1.6}
 @keyframes b{0%,60%,100%{opacity:.25}30%{opacity:1}}
 .toast{position:fixed;bottom:calc(74px + var(--safe-b));inset-inline:0;margin:0 auto;width:max-content;max-width:88%;background:var(--deep);color:#F2EFE7;padding:10px 18px;border-radius:999px;font-size:13.5px;z-index:95;opacity:0;transition:opacity .2s;pointer-events:none;text-align:center}
 .toast.on{opacity:1}
+
+/* ===== تخطيط الأجهزة اللوحية ===== */
+@media (min-width:820px){
+  body{padding-inline-end:96px}
+  header{padding-inline:24px}
+  .brand{font-size:21px}
+  .capture,.tabs,.viewrow{max-width:1080px;margin-inline:auto;padding-inline:24px;width:100%}
+  main{max-width:1080px;margin-inline:auto;width:100%;padding:8px 24px 40px}
+  .capbox textarea{min-height:56px;font-size:16px}
+  /* شريط جانبي بدل الشريط السفلي */
+  nav{top:0;bottom:0;inset-inline-end:0;inset-inline-start:auto;width:96px;
+      flex-direction:column;justify-content:center;gap:6px;border-top:none;
+      border-inline-start:1px solid var(--line);padding:12px 8px;background:rgba(247,245,240,.96)}
+  nav button{flex:0 0 auto;padding:12px 0;border-radius:12px;font-size:11.5px}
+  nav button .ic{font-size:21px;margin-bottom:2px}
+  nav button.on{background:var(--deep);color:#F2EFE7}
+  /* بطاقات في عمودين */
+  #paneNotes{column-count:2;column-gap:14px}
+  #paneNotes>*{break-inside:avoid;-webkit-column-break-inside:avoid}
+  #paneJournal,#paneMeet,#paneBoards{column-count:2;column-gap:14px}
+  #paneJournal>*,#paneMeet>*,#paneBoards>*{break-inside:avoid}
+  #paneJournal>.btn,#paneMeet>.btn{column-span:all}
+  .balgrid{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+  /* اللوحات المنبثقة كنوافذ وسط الشاشة */
+  .sheetInner{inset-inline:auto;inset-inline-start:50%;transform:translateX(-50%);bottom:auto;top:50%;
+    margin-top:-42vh;width:min(680px,92%);max-height:84vh;border-radius:18px}
+  .askbar{bottom:0;inset-inline-end:96px;inset-inline-start:0;padding:12px 24px}
+  .toast{bottom:28px;inset-inline-end:96px}
+  #mapWrap{height:calc(100vh - 300px)}
+  .dpanel{width:400px}
+  /* لوحة الرسم بمساحة أكبر */
+  .canvasHolder{margin:12px 18px}
+  .dtools{padding:10px 18px 16px;gap:10px}
+  .swatch{width:34px;height:34px}
+  .sz{width:42px;height:36px}
+  .tbtn{font-size:14px;padding:9px 16px}
+  #drawWrap,#jrn,#rec{inset-inline-end:96px}
+  #jBody{margin:14px 18px;font-size:16.5px;line-height:2}
+}
+@media (min-width:1200px){
+  #paneNotes{column-count:3}
+}
 </style>
 </head>
 <body>
@@ -224,11 +269,10 @@ textarea.inp{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="capture" id="captureWrap">
   <div class="capbox">
-    <textarea id="cap" rows="1" placeholder="اكتب اللي في بالك… سطر واحد يكفي"></textarea>
+    <textarea id="cap" rows="1" placeholder="اكتب اللي في بالك… أو استخدم ميكروفون لوحة المفاتيح"></textarea>
     <div class="caprow">
       <button class="chipmini" id="capType">تلقائي</button>
       <button class="chipmini" id="capPriv">🔒 خاصة</button>
-      <button class="chipmini" id="capMic" title="إملاء صوتي">🎙</button>
       <button class="send" id="capSend" disabled>أضف</button>
     </div>
   </div>
@@ -304,7 +348,6 @@ textarea.inp{min-height:90px;resize:vertical;line-height:1.6}
   <div class="jtop">
     <button class="iconbtn" id="jClose">✕</button>
     <input id="jTitle" placeholder="عنوان المذكرة (اختياري)">
-    <button class="iconbtn" id="jMic" title="إملاء صوتي">🎙</button>
     <button class="iconbtn" id="jSave">✓</button>
   </div>
   <textarea id="jBody" placeholder="اكتب بحرية… سيرة، مذكرة، تأمل، أو تفريغ ما في رأسك.
@@ -919,10 +962,7 @@ async function micToggle(btn,insert){
     toast('يسجّل… اضغط مرة تانية للإيقاف');
   }catch(e){toast('تعذّر الميكروفون: '+e.message)}
 }
-$('#capMic').onclick=e=>micToggle(e.currentTarget,t=>{
-  cap.value=(cap.value?cap.value+' ':'')+t;cap.dispatchEvent(new Event('input'));cap.focus()});
-$('#jMic').onclick=e=>micToggle(e.currentTarget,t=>{
-  const b=$('#jBody');b.value=(b.value?b.value+'\n':'')+t;b.focus()});
+
 
 /* ================= القسم المالي (مشفَّر محلياً) ================= */
 let fin={txs:[],plans:[],accounts:['بنك','كاش','الصرافة'],updatedAt:0};
@@ -1243,7 +1283,6 @@ function renderFin(){
    <div class="capbox" style="margin-bottom:12px">
      <textarea id="finIn" rows="1" placeholder="مثال: صرفت ٣٠٠ ريال على بنزين من الصرافة — أو: امبارح دفعت ٥٠٠ إيجار" style="width:100%;border:none;outline:none;background:none;resize:none;min-height:40px"></textarea>
      <div class="caprow">
-       <button class="chipmini" id="finMic">🎙</button>
        <button class="chipmini" id="finAI">${settings.finAI?'بالذكاء ✓':'محلي'}</button>
        <button class="send" id="finAdd">سجّل</button>
      </div>
@@ -1283,7 +1322,6 @@ $('#paneFin').addEventListener('click',async e=>{
   if(e.target.id==='finAdd'){const v=$('#finIn').value.trim();if(!v)return;$('#finIn').value='';return addFinText(v,settings.finAI)}
   if(e.target.id==='finAI'){settings.finAI=!settings.finAI;saveSettings();renderFin();
     return toast(settings.finAI?'التحليل بالذكاء — تُرسل الجملة فقط':'تحليل محلي — لا يخرج شيء من جهازك')}
-  if(e.target.id==='finMic')return micToggle(e.target,t=>{const i=$('#finIn');i.value=(i.value?i.value+' ':'')+t});
   if(e.target.id==='finLock'){finKey=null;finLoaded=false;fin={txs:[],plans:[],accounts:['بنك','كاش','الصرافة'],updatedAt:0};
     toast('اتقفل القسم المالي');return renderFin()}
   const pa=e.target.closest('[data-pact]');
@@ -1912,6 +1950,8 @@ function checkDue(){if(!('Notification'in window)||Notification.permission!=='gr
   }}
 
 /* ===== تشغيل ===== */
+if('serviceWorker' in navigator)
+  addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 go('notes');
 if(ghReady()){setDot('');syncNow(true)}
 setTimeout(()=>{runBrief(false);checkDue()},2500);
