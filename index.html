@@ -144,6 +144,7 @@ nav button{font-size:9.8px}
 nav button.on{color:var(--deep)}
 
 .sheet{position:fixed;inset:0;z-index:75;display:none}
+.sheet .veil{cursor:default}
 .sheet.on{display:block}
 .veil{position:absolute;inset:0;background:rgba(14,26,25,.42)}
 .sheetInner{position:absolute;inset-inline:0;bottom:0;max-height:92%;overflow-y:auto;background:var(--paper);border-radius:20px 20px 0 0;padding:16px 16px calc(20px + var(--safe-b));box-shadow:0 -8px 40px rgba(0,0,0,.2)}
@@ -234,8 +235,10 @@ textarea.inp{min-height:90px;resize:vertical;line-height:1.6}
   #paneJournal>.btn,#paneMeet>.btn{column-span:all}
   .balgrid{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
   /* اللوحات المنبثقة كنوافذ وسط الشاشة */
-  .sheetInner{inset-inline:auto;inset-inline-start:50%;transform:translateX(-50%);bottom:auto;top:50%;
-    margin-top:-42vh;width:min(680px,92%);max-height:84vh;border-radius:18px}
+  .sheet.on{display:flex;align-items:center;justify-content:center;padding:24px}
+  .sheetInner{position:relative;inset:auto;transform:none;width:min(680px,100%);
+    max-height:86vh;border-radius:18px;box-shadow:0 24px 70px rgba(0,0,0,.3)}
+  .grab{display:none}
   .askbar{bottom:0;inset-inline-end:96px;inset-inline-start:0;padding:12px 24px}
   .toast{bottom:28px;inset-inline-end:96px}
   #mapWrap{height:calc(100vh - 300px)}
