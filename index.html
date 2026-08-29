@@ -195,6 +195,14 @@ textarea.inp{min-height:90px;resize:vertical;line-height:1.6}
 .ftbl th{color:var(--ink-3);font-weight:500;font-size:12px}
 .ftbl td.num{direction:ltr;text-align:end;font-family:"Reem Kufi",sans-serif}
 .scoperow{display:flex;gap:6px;margin-bottom:10px}
+#lockScr{position:fixed;inset:0;z-index:200;background:var(--deep);color:#F2EFE7;
+  display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:28px}
+#lockScr.on{display:flex}
+#lockScr .lg{font-family:"Reem Kufi",sans-serif;font-size:26px}
+#lockScr p{margin:0;opacity:.6;font-size:13.5px}
+#lockScr input{width:min(320px,90%);background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);
+  border-radius:12px;padding:13px 16px;color:#F2EFE7;outline:none;text-align:center;font-size:17px;letter-spacing:2px}
+#lockScr button{background:#F2EFE7;color:var(--deep);border-radius:12px;padding:12px 28px;font-weight:600}
 #chatLog{padding-bottom:8px}
 .msg{margin-bottom:10px;padding:11px 13px;border-radius:13px;max-width:92%;white-space:pre-wrap;word-break:break-word;font-size:14.5px}
 .msg.me{background:var(--deep);color:#F2EFE7;margin-inline-start:auto;border-end-end-radius:4px}
@@ -374,6 +382,12 @@ textarea.inp{min-height:90px;resize:vertical;line-height:1.6}
 </div>
 
 <div class="sheet" id="sheet"><div class="veil" data-close></div><div class="sheetInner" id="sheetBody"></div></div>
+<div id="lockScr">
+  <div class="lg">أفكاري</div>
+  <p id="lockMsg">أدخل كلمة السر</p>
+  <input id="lockPass" type="password" inputmode="text" autocomplete="off">
+  <button id="lockGo">فتح</button>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -465,11 +479,19 @@ async function syncNow(quiet){
       if(m.data.prof&&(m.data.prof.at||0)>(prof.at||0))prof=m.data.prof;
     }
     await ghWrite('afkary-data.json',{v:3,notes,journals,threads,meetings,deleted,prof,at:Date.now()},m.sha);
-    const fb=store.get('afk_fin',null);
-    if(fb){
+    {
+      const fb=store.get('afk_fin',null);
       const rf=await ghRead('afkary-fin.json');
-      if(rf.data&&(rf.data.at||0)>(fb.at||0)){store.set('afk_fin',rf.data);finLoaded=false;finKey=null}
-      else await ghWrite('afkary-fin.json',fb,rf.sha);
+      const localEmpty=!fb||(fb.plain&&!(fb.plain.txs||[]).length&&!(fb.plain.plans||[]).length);
+      const remoteNewer=rf.data&&(rf.data.at||0)>((fb&&fb.at)||0);
+      if(rf.data&&(localEmpty||remoteNewer)){
+        store.set('afk_fin',rf.data);
+        if(rf.data.salt)store.set('afk_fin_salt',rf.data.salt);
+        finLoaded=false;finKey=null;
+        fin={txs:[],plans:[],accounts:['بنك','كاش','الصرافة'],updatedAt:0};
+      }else if(fb&&!localEmpty){
+        await ghWrite('afkary-fin.json',fb,rf.sha);
+      }
     }
     if(boards.length){const b=await ghRead('afkary-boards.json');
       if(b.data)boards=mergeById(boards,b.data.boards||[]);
@@ -999,6 +1021,8 @@ async function finSave(){
   queueSync();
 }
 async function finUnlock(pass){
+  const blob0=store.get('afk_fin',null);
+  if(blob0&&blob0.salt)store.set('afk_fin_salt',blob0.salt);
   let salt=store.get('afk_fin_salt','');
   if(!salt){ const s=crypto.getRandomValues(new Uint8Array(16)); salt=bufB64(s); store.set('afk_fin_salt',salt); }
   finKey=await deriveKey(pass,b64Buf(salt));
@@ -1008,8 +1032,8 @@ async function finUnlock(pass){
 }
 function finGate(){
   const blob=store.get('afk_fin',null);
-  if(blob&&blob.plain){fin=blob.plain;finLoaded=true;return renderFin()}
-  const first=!blob;
+  if(blob&&blob.plain&&!blob.ct){fin=blob.plain;finLoaded=true;return renderFin()}
+  const first=!blob||(!blob.ct&&!blob.plain);
   openSheet(`<h2>${first?'أنشئ كلمة سر للقسم المالي':'القسم المالي مقفول'}</h2>
    <p class="hint">${first?'بياناتك المالية تُشفَّر على جهازك وفي المزامنة بهذه الكلمة. لا أحد يقرأها بدونها — ولا حتى من يفتح مستودعك على GitHub. <b>لو نسيتها لا يمكن استرجاع البيانات.</b>':'أدخل كلمة السر لفتح بياناتك المالية.'}</p>
    <label class="f">كلمة السر</label><input class="inp" id="finPass" type="password" autocomplete="off">
@@ -1886,6 +1910,7 @@ function openSettings(note){
      <button class="btn row sec" id="xMd">تصدير Markdown</button></div>
    <div class="rowbtns"><button class="btn row sec" id="xImport">استيراد نسخة</button>
      <button class="btn row sec" id="xBulk">استيراد ملاحظات قديمة</button></div>
+   <button class="btn sec" id="xLock">قفل التطبيق بكلمة سر</button>
    <button class="btn sec" id="xNotify">تفعيل تنبيهات المهام</button>
    <button class="btn danger" id="xWipe">مسح كل شيء من هذا الجهاز</button>
    <input type="file" id="fileIn" accept="application/json" hidden>`);
@@ -1907,6 +1932,7 @@ function openSettings(note){
   $('#xJson').onclick=exportJson;$('#xMd').onclick=exportMd;
   $('#xImport').onclick=()=>$('#fileIn').click();$('#fileIn').onchange=importJson;
   $('#xBulk').onclick=bulkImport;
+  $('#xLock').onclick=lockSettings;
   $('#xNotify').onclick=async e=>{if(!('Notification'in window))return toast('غير مدعوم');
     const pr=await Notification.requestPermission();
     e.target.textContent=pr==='granted'?'التنبيهات مفعّلة ✓':'مرفوضة';if(pr==='granted')checkDue()};
@@ -1952,10 +1978,68 @@ function checkDue(){if(!('Notification'in window)||Notification.permission!=='gr
     if(d.length)new Notification('أفكاري — التزامات',{body:d.map(p=>`${p.title}: ${fmtMoney(p.amount)} ${CURN[p.cur]}`).join(' · ')});
   }}
 
+
+/* ===== قفل التطبيق ===== */
+let lockedAt=0;
+async function hashPass(pass,saltB64){
+  const salt=Uint8Array.from(atob(saltB64),c=>c.charCodeAt(0));
+  const base=await crypto.subtle.importKey('raw',new TextEncoder().encode(pass),'PBKDF2',false,['deriveBits']);
+  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:150000,hash:'SHA-256'},base,256);
+  return btoa(String.fromCharCode(...new Uint8Array(bits)));
+}
+function lockCfg(){return store.get('afk_lock',null)}
+function showLock(msg){
+  $('#lockMsg').textContent=msg||'أدخل كلمة السر';
+  $('#lockPass').value='';$('#lockScr').classList.add('on');
+  setTimeout(()=>$('#lockPass').focus(),200);
+}
+async function tryUnlockApp(){
+  const cfg=lockCfg();if(!cfg)return;
+  const v=$('#lockPass').value;
+  if(!v)return;
+  const h=await hashPass(v,cfg.salt);
+  if(h===cfg.hash){$('#lockScr').classList.remove('on');lockedAt=0}
+  else{$('#lockMsg').textContent='كلمة السر غير صحيحة';$('#lockPass').value=''}
+}
+$('#lockGo').onclick=tryUnlockApp;
+$('#lockPass').addEventListener('keydown',e=>{if(e.key==='Enter')tryUnlockApp()});
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){lockedAt=Date.now()}
+  else if(lockCfg()&&lockedAt&&Date.now()-lockedAt>2*60000){
+    finKey=null;finLoaded=false;fin={txs:[],plans:[],accounts:['بنك','كاش','الصرافة'],updatedAt:0};
+    showLock();
+  }
+});
+function lockSettings(){
+  const cfg=lockCfg();
+  openSheet(`<h2>قفل التطبيق</h2>
+   <p class="hint">قفل عند الفتح، ويعود بعد دقيقتين من تركه في الخلفية.
+     ${cfg?'':'<br>هذا قفل شاشة يمنع الفضول، أما البيانات المالية فمشفَّرة بكلمتها الخاصة.'}</p>
+   ${cfg?'<label class="f">كلمة السر الحالية</label><input class="inp" id="lkOld" type="password">':''}
+   <label class="f">${cfg?'كلمة سر جديدة (اتركها فاضية لإلغاء القفل)':'كلمة السر'}</label>
+   <input class="inp" id="lkNew" type="password">
+   <label class="f">تأكيد</label><input class="inp" id="lkNew2" type="password">
+   <button class="btn" id="lkSave">${cfg?'تحديث':'فعّل القفل'}</button>`);
+  $('#lkSave').onclick=async()=>{
+    if(cfg){
+      const h=await hashPass($('#lkOld').value,cfg.salt);
+      if(h!==cfg.hash)return toast('كلمة السر الحالية غير صحيحة');
+    }
+    const n=$('#lkNew').value;
+    if(!n){store.set('afk_lock',null);$('#sheet').classList.remove('on');return toast('اتلغى قفل التطبيق')}
+    if(n.length<4)return toast('كلمة قصيرة جداً');
+    if(n!==$('#lkNew2').value)return toast('الكلمتان غير متطابقتين');
+    const salt=btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
+    store.set('afk_lock',{salt,hash:await hashPass(n,salt)});
+    $('#sheet').classList.remove('on');toast('اتفعّل قفل التطبيق');
+  };
+}
+
 /* ===== تشغيل ===== */
 if('serviceWorker' in navigator)
   addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 go('notes');
+if(lockCfg())showLock();
 if(ghReady()){setDot('');syncNow(true)}
 setTimeout(()=>{runBrief(false);checkDue()},2500);
 addEventListener('beforeunload',saveLocal);
