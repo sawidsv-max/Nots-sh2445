@@ -951,38 +951,72 @@ function finGate(){
 const AR_DIG={'٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9'};
 function normNum(t){return t.replace(/[٠-٩]/g,d=>AR_DIG[d]).replace(/,/g,'')}
 function parseFin(raw){
-  const t=normNum(' '+raw+' ');
-  const mnum=t.match(/(\d+(?:\.\d+)?)/);
-  if(!mnum)return null;
-  let amount=parseFloat(mnum[1]);
+  let t=normNum(' '+raw+' ');
+  let at=Date.now(), hasDate=false;
+  /* 1) وقت صريح 10:30 — يُزال قبل قراءة المبلغ */
+  let hh=null,mm=null;
+  const tm=t.match(/(\d{1,2})\s*:\s*(\d{2})/);
+  if(tm){hh=+tm[1];mm=+tm[2];if(/م\b|مساء|بعد الضهر|بعد الظهر/.test(t)&&hh<12)hh+=12;t=t.replace(tm[0],' ')}
+  /* 2) تاريخ صريح 2026/8/15 أو 15-8-2026 */
+  const dm=t.match(/(\d{1,4})\s*[\/\-\.]\s*(\d{1,2})\s*[\/\-\.]\s*(\d{1,4})/);
+  if(dm){
+    let a=+dm[1],b=+dm[2],c=+dm[3],y,mo,d;
+    if(a>31){y=a;mo=b;d=c}else{d=a;mo=b;y=c<100?2000+c:c}
+    const dt=new Date(y,(mo||1)-1,d||1);
+    if(!isNaN(dt.getTime())){const n=new Date();dt.setHours(hh!==null?hh:n.getHours(),mm!==null?mm:n.getMinutes());
+      at=dt.getTime();hasDate=true}
+    t=t.replace(dm[0],' ');
+  }
+  /* 3) تواريخ نسبية */
+  if(!hasDate){
+    const dAgo=t.match(/(?:من|قبل)\s*(\d+)\s*(?:يوم|أيام|ايام)/);
+    const wAgo=t.match(/(?:من|قبل)\s*(\d+)\s*(?:أسبوع|اسبوع|أسابيع|اسابيع)/);
+    if(dAgo){at-=+dAgo[1]*86400000;t=t.replace(dAgo[0],' ');hasDate=true}
+    else if(wAgo){at-=+wAgo[1]*7*86400000;t=t.replace(wAgo[0],' ');hasDate=true}
+    else if(/(?:من|قبل)\s*يومين|أول امبارح|اول امبارح|أول أمس|اول امس/.test(t)){
+      at-=2*86400000;t=t.replace(/(?:من|قبل)\s*يومين|أول امبارح|اول امبارح|أول أمس|اول امس/,' ');hasDate=true}
+    else if(/(?:من|قبل)\s*أسبوعين|(?:من|قبل)\s*اسبوعين/.test(t)){at-=14*86400000;hasDate=true}
+    else if(/امبارح|أمس|البارحة|امس/.test(t)){at-=86400000;hasDate=true}
+    else if(/الأسبوع الماضي|الاسبوع الماضي|الأسبوع اللي فات|الاسبوع اللي فات/.test(t)){at-=7*86400000;hasDate=true}
+    else if(/الشهر الماضي|الشهر اللي فات/.test(t)){const d=new Date();d.setMonth(d.getMonth()-1);at=d.getTime();hasDate=true}
+  }
+  if(!hasDate&&hh!==null){const d=new Date();d.setHours(hh,mm||0,0,0);at=d.getTime()}
+  /* 4) المبلغ — الرقم الملاصق للعملة له الأولوية */
+  let amount=null;
+  const m1=t.match(/(\d+(?:\.\d+)?)\s*(?:ريال|ر\.س|جنيه|ج\.م|دولار|\$|sar|egp|usd)/i);
+  const m2=t.match(/(?:ريال|ر\.س|جنيه|ج\.م|دولار|\$|sar|egp|usd)\s*(\d+(?:\.\d+)?)/i);
+  const m3=t.match(/(\d+(?:\.\d+)?)/);
+  if(m1)amount=parseFloat(m1[1]); else if(m2)amount=parseFloat(m2[1]); else if(m3)amount=parseFloat(m3[1]);
+  if(amount===null||isNaN(amount))return null;
   if(/ألف|الف|آلاف/.test(t))amount*=1000;
   if(/مليون/.test(t))amount*=1000000;
+  /* 5) العملة */
   let cur=settings.finCur||'SAR';
   if(/ريال|ر\.س|sar/i.test(t))cur='SAR';
   else if(/جنيه|ج\.م|egp/i.test(t))cur='EGP';
   else if(/دولار|\$|usd/i.test(t))cur='USD';
+  /* 6) النوع */
   let kind='out';
-  if(/قبضت|استلمت|دخل|إيراد|ايراد|راتب|وصلني|حوّل\s*لي|حول لي|مقدم|دفعة من|تحصيل|بيع/.test(t))kind='in';
-  if(/رصيدي|معي|عندي|الرصيد|موجود في|في البنك|في الكاش/.test(t)&&!/صرفت|دفعت|اشتريت/.test(t))kind='set';
+  const isIn=/قبضت|استلمت|دخل|إيراد|ايراد|راتب|وصلني|حوّل\s*لي|حول لي|مقدم|دفعة من|تحصيل|بيع|أرباح|ارباح/.test(t);
+  const isOut=/صرفت|دفعت|اشتريت|سددت|مصروف|خصم|اتخصم|شريت/.test(t);
+  if(isIn)kind='in';
+  if(/رصيدي|معي|عندي|الرصيد|الموجود/.test(t)&&!isIn&&!isOut)kind='set';
+  /* 7) الحساب */
   let acct='كاش';
   if(/بنك|الحساب|حوالة|تحويل بنكي|راجحي|اهلي|الأهلي/.test(t))acct='بنك';
   else if(/كاش|نقدي|نقداً|نقدا/.test(t))acct='كاش';
   else if(/صراف|محفظة|مدى|فيزا|بطاقة|stc|أبل باي|ابل باي/.test(t))acct='الصرافة';
   const scope=/شركة|الشركة|مؤسسة|المؤسسة|الشغل|العميل|مشروع|إنتاج|انتاج|وزارة/.test(t)?'مؤسسة':'شخصي';
+  /* 8) البند */
   let cat='';
-  const CATS={'طعام':/أكل|اكل|طعام|مطعم|قهوة|كافيه|بقالة|سوبر ماركت|عشاء|غدا?ء/,
-    'مواصلات':/بنزين|وقود|تاكسي|أوبر|اوبر|كريم|مواصلات|تذكرة|طيران|سفر/,
+  const CATS={'طعام':/أكل|اكل|طعام|طعم|مطعم|قهوة|كافيه|بقالة|سوبر ماركت|عشاء|غدا?ء|فطار/,
+    'مواصلات':/بنزين|وقود|تاكسي|أوبر|اوبر|كريم|مواصلات|تذكرة|طيران|سفر|بترول/,
     'سكن':/إيجار|ايجار|سكن|كهرباء|مياه|فاتورة|فواتير|إنترنت|انترنت/,
-    'معدات':/كاميرا|عدسة|ميكروفون|معدات|هارد|بطارية|إضاءة|اضاءة|تصوير/,
+    'معدات':/كاميرا|عدسة|ميكروفون|معدات|هارد|بطارية|إضاءة|اضاءة|تصوير|استوديو/,
     'رواتب':/راتب|رواتب|أجور|اجور|مكافأة|فريق|طاقم/,
     'صحة':/دواء|صيدلية|طبيب|علاج|مستشفى/,
     'اتصالات':/شحن|رصيد جوال|باقة|اتصالات|stc|موبايلي/};
   for(const k in CATS)if(CATS[k].test(t)){cat=k;break}
-  let at=Date.now();
-  if(/أول امبارح|أول أمس|اول امبارح/.test(t))at-=2*86400000;
-  else if(/امبارح|أمس|البارحة/.test(t))at-=86400000;
-  else if(/الأسبوع الماضي|الاسبوع الماضي|الأسبوع اللي فات/.test(t))at-=7*86400000;
-  else if(/الشهر الماضي|الشهر اللي فات/.test(t)){const d=new Date();d.setMonth(d.getMonth()-1);at=d.getTime()}
   return {id:uid(),kind,amount,cur,acct,scope,cat,note:raw.trim(),at,createdAt:Date.now(),updatedAt:Date.now()};
 }
 async function addFinText(raw,useAI){
@@ -991,18 +1025,24 @@ async function addFinText(raw,useAI){
     try{
       const out=await callAI({max:300,
         system:`حوّل الجملة المالية العربية إلى JSON فقط:
-{"kind":"in|out|set","amount":0,"cur":"SAR|EGP|USD","acct":"بنك|كاش|الصرافة","scope":"شخصي|مؤسسة","cat":"بند مختصر"}
-kind=set إذا كانت الجملة تقرير رصيد حالي. لا تكتب شيئاً غير JSON.`,
+{"kind":"in|out|set","amount":0,"cur":"SAR|EGP|USD","acct":"بنك|كاش|الصرافة","scope":"شخصي|مؤسسة","cat":"بند مختصر","date":"YYYY-MM-DD","time":"HH:MM"}
+تاريخ اليوم ${today()}. إن ذُكر تاريخ صريح أو نسبي (امبارح، من يومين، الأسبوع الماضي) فاحسبه وضعه في date، وإلا اترك date فارغاً.
+لا تخلط أرقام التاريخ بالمبلغ. kind=set إذا كانت الجملة تقرير رصيد حالي. لا تكتب شيئاً غير JSON.`,
         prompt:raw});
       const j=JSON.parse(out.replace(/```json|```/g,'').trim());
-      if(j&&j.amount)tx={id:uid(),kind:j.kind||'out',amount:+j.amount,cur:j.cur||'SAR',acct:j.acct||'كاش',
-        scope:j.scope||'شخصي',cat:j.cat||'',note:raw.trim(),at:Date.now(),createdAt:Date.now(),updatedAt:Date.now()};
+      if(j&&j.amount){
+        let at=Date.now();
+        if(j.date){const d=new Date(j.date+'T'+(j.time||'12:00'));if(!isNaN(d.getTime()))at=d.getTime()}
+        else if(tx)at=tx.at;
+        tx={id:uid(),kind:j.kind||'out',amount:+j.amount,cur:j.cur||'SAR',acct:j.acct||'كاش',
+          scope:j.scope||'شخصي',cat:j.cat||'',note:raw.trim(),at,createdAt:Date.now(),updatedAt:Date.now()};
+      }
     }catch(e){}
   }
   if(!tx)return toast('ما لقيتش مبلغ في الجملة');
   if(!fin.accounts.includes(tx.acct))fin.accounts.push(tx.acct);
   fin.txs.unshift(tx);await finSave();renderFin();
-  toast(`${tx.kind==='in'?'دخل':tx.kind==='set'?'رصيد':'مصروف'} ${tx.amount} ${CURN[tx.cur]} — ${tx.acct}`);
+  toast(`${tx.kind==='in'?'دخل':tx.kind==='set'?'رصيد':'مصروف'} ${fmtMoney(tx.amount)} ${CURN[tx.cur]} — ${tx.acct} · ${new Date(tx.at).toLocaleDateString('ar-EG',{day:'numeric',month:'short'})}`);
 }
 /* --- الأرصدة --- */
 function balances(scope){
