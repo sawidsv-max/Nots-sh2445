@@ -990,6 +990,22 @@ function parseFin(raw){
   if(amount===null||isNaN(amount))return null;
   if(/ألف|الف|آلاف/.test(t))amount*=1000;
   if(/مليون/.test(t))amount*=1000000;
+  /* كسور منطوقة */
+  if(Number.isInteger(amount)){
+    const WORDS={'عشرة':10,'عشره':10,'عشرين':20,'خمسة وعشرين':25,'خمسه وعشرين':25,'خمس وعشرين':25,
+      'ثلاثين':30,'تلاتين':30,'أربعين':40,'اربعين':40,'خمسين':50,'ستين':60,'سبعين':70,
+      'خمسة وسبعين':75,'خمسه وسبعين':75,'خمس وسبعين':75,'ثمانين':80,'تمانين':80,'تسعين':90,'خمسة':5,'خمسه':5};
+    const sub=t.match(/و\s*(\d{1,2})\s*(?:هللة|هلله|هللات|قرش|قروش|سنت)/);
+    if(sub)amount+= +sub[1]/100;
+    else{
+      const w=t.match(/و\s*([\u0621-\u064A ]{3,18}?)\s*(?:هللة|هلله|هللات|قرش|قروش|سنت)/);
+      if(w){const key=w[1].trim();if(WORDS[key]!==undefined)amount+=WORDS[key]/100}
+    }
+    if(false){}
+    else if(/\bونص\b|و\s*نصف/.test(t))amount+=0.5;
+    else if(/وربع|و\s*ربع/.test(t))amount+=0.25;
+    else if(/وتلت|وثلث/.test(t))amount+=Math.round(100/3)/100;
+  }
   /* 5) العملة */
   let cur=settings.finCur||'SAR';
   if(/ريال|ر\.س|sar/i.test(t))cur='SAR';
@@ -1057,7 +1073,8 @@ function balances(scope){
   });
   return b;
 }
-const fmtMoney=n=>Math.round(n).toLocaleString('en-US');
+const fmtMoney=n=>{const r=Math.round(n*100)/100;
+  return r.toLocaleString('en-US',{minimumFractionDigits:Number.isInteger(r)?0:2,maximumFractionDigits:2})};
 const fmtDT=ts=>new Date(ts).toLocaleDateString('ar-EG',{weekday:'short',day:'numeric',month:'short'})+' · '+
   new Date(ts).toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'});
 const toLocalInput=ts=>new Date(ts-new Date(ts).getTimezoneOffset()*60000).toISOString().slice(0,16);
@@ -1129,7 +1146,7 @@ function openTx(t){
      <option value="in" ${t.kind==='in'?'selected':''}>دخل</option>
      <option value="set" ${t.kind==='set'?'selected':''}>تعيين رصيد</option></select>
    <label class="f">المبلغ</label>
-   <input class="inp" id="txAmt" type="number" inputmode="decimal" value="${t.amount}" style="direction:ltr">
+   <input class="inp" id="txAmt" type="number" step="0.01" inputmode="decimal" value="${t.amount}" style="direction:ltr">
    <label class="f">العملة</label>
    <select class="inp" id="txCur">${CURS.map(c=>`<option value="${c}" ${t.cur===c?'selected':''}>${CURN[c]}</option>`).join('')}</select>
    <label class="f">الحساب</label>
