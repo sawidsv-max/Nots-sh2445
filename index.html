@@ -484,7 +484,7 @@ async function syncNow(quiet){
           boards=mergeById(boards,rd.boards||[]);
           deleted=[...new Map([...(rd.deleted||[]),...deleted].map(d=>[d.id,d])).values()];
           if(rd.prof&&(rd.prof.at||0)>(prof.at||0))prof=rd.prof;
-        }catch(e){throw new Error('كلمة سر مختلفة عن الجهاز الآخر')}
+        }catch(e){throw new Error('كلمة السر مختلفة عن الجهاز الآخر — استخدم نفس الكلمة على الجهازين')}
       }
       await ghWrite('afkary-vault.json',await vaultEncrypt(vaultPayload(),vaultKey),rv.sha);
       await vaultWrite();
@@ -1042,7 +1042,7 @@ async function deriveKey(pass,salt){
 async function finEncrypt(obj){
   const iv=crypto.getRandomValues(new Uint8Array(12));
   const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},finKey,enc.encode(JSON.stringify(obj)));
-  return {v:1,iv:bufB64(iv),ct:bufB64(ct),salt:store.get('afk_fin_salt',''),at:Date.now()};
+  return {v:2,iv:bufB64(iv),ct:bufB64(ct),salt:'det',at:Date.now()};
 }
 async function finDecrypt(blob){
   const data=await crypto.subtle.decrypt({name:'AES-GCM',iv:b64Buf(blob.iv)},finKey,b64Buf(blob.ct));
@@ -1055,14 +1055,23 @@ async function finSave(){
   queueSync();
 }
 async function finUnlock(pass){
-  const blob0=store.get('afk_fin',null);
-  if(blob0&&blob0.salt)store.set('afk_fin_salt',blob0.salt);
-  let salt=store.get('afk_fin_salt','');
-  if(!salt){ const s=crypto.getRandomValues(new Uint8Array(16)); salt=bufB64(s); store.set('afk_fin_salt',salt); }
-  finKey=await deriveKey(pass,b64Buf(salt));
   const blob=store.get('afk_fin',null);
-  if(blob&&blob.ct){ fin=await finDecrypt(blob); }
-  finLoaded=true;
+  const cands=[await detSalt('fin')];
+  const old=store.get('afk_fin_salt','');
+  if(old&&old!=='det')cands.push(b64Buf(old));
+  if(blob&&blob.salt&&blob.salt!=='det')cands.push(b64Buf(blob.salt));
+  for(const salt of cands){
+    finKey=await deriveKey(pass,salt);
+    if(!blob||!blob.ct){store.set('afk_fin_salt','det');finLoaded=true;return}
+    try{fin=await finDecrypt(blob);
+      if(store.get('afk_fin_salt','')!=='det'){
+        finKey=await deriveKey(pass,await detSalt('fin'));
+        store.set('afk_fin_salt','det');await finSave();
+      }
+      finLoaded=true;return;
+    }catch(e){}
+  }
+  finKey=null;throw new Error('كلمة السر غير صحيحة');
 }
 function finGate(){
   const blob=store.get('afk_fin',null);
@@ -2016,6 +2025,14 @@ function checkDue(){if(!('Notification'in window)||Notification.permission!=='gr
 
 
 
+
+/* ملح ثابت مشتق من اسم المستودع — يجعل نفس الكلمة تنتج نفس المفتاح على كل الأجهزة */
+async function detSalt(tag){
+  const seed='afkary|'+tag+'|'+((settings.gh&&settings.gh.repo)||'local');
+  const h=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(seed));
+  return new Uint8Array(h).slice(0,16);
+}
+
 /* ===== الخزنة: تشفير كل بيانات التطبيق ===== */
 let vaultKey=null;
 const vaultOn=()=>!!store.get('afk_vault_salt','');
@@ -2029,7 +2046,7 @@ function vaultApply(d){
 async function vaultEncrypt(obj,key){
   const iv=crypto.getRandomValues(new Uint8Array(12));
   const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(JSON.stringify(obj)));
-  return {v:1,iv:bufB64(iv),ct:bufB64(ct),salt:store.get('afk_vault_salt',''),at:Date.now()};
+  return {v:2,iv:bufB64(iv),ct:bufB64(ct),salt:'det',at:Date.now()};
 }
 async function vaultDecrypt(blob,key){
   const d=await crypto.subtle.decrypt({name:'AES-GCM',iv:b64Buf(blob.iv)},key,b64Buf(blob.ct));
@@ -2041,19 +2058,28 @@ async function vaultWrite(){
 }
 async function vaultUnlock(pass){
   const blob=store.get('afk_vault',null);
-  let salt=store.get('afk_vault_salt','');
-  if(blob&&blob.salt){salt=blob.salt;store.set('afk_vault_salt',salt)}
-  if(!salt)return false;
-  const key=await deriveKey(pass,b64Buf(salt));
-  if(blob&&blob.ct){
-    try{vaultApply(await vaultDecrypt(blob,key))}catch(e){return false}
+  const cands=[await detSalt('vault')];
+  const old=store.get('afk_vault_salt','');
+  if(old&&old!=='det')cands.push(b64Buf(old));
+  if(blob&&blob.salt&&blob.salt!=='det')cands.push(b64Buf(blob.salt));
+  for(const salt of cands){
+    const key=await deriveKey(pass,salt);
+    if(!blob||!blob.ct){vaultKey=key;store.set('afk_vault_salt','det');return true}
+    try{vaultApply(await vaultDecrypt(blob,key));vaultKey=key;
+      await vaultRekey(pass);return true}catch(e){}
   }
-  vaultKey=key;return true;
+  return false;
+}
+/* إعادة التشفير بالملح الثابت إن كان قديماً */
+async function vaultRekey(pass){
+  if(store.get('afk_vault_salt','')==='det')return;
+  vaultKey=await deriveKey(pass,await detSalt('vault'));
+  store.set('afk_vault_salt','det');
+  await vaultWrite();queueSync();
 }
 async function enableVault(pass){
-  const salt=bufB64(crypto.getRandomValues(new Uint8Array(16)));
-  store.set('afk_vault_salt',salt);
-  vaultKey=await deriveKey(pass,b64Buf(salt));
+  store.set('afk_vault_salt','det');
+  vaultKey=await deriveKey(pass,await detSalt('vault'));
   await vaultWrite();
   ['afk_notes','afk_boards','afk_journals','afk_threads','afk_meetings','afk_deleted','afk_prof','afk_chat','afk_brief','afk_map']
     .forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});
