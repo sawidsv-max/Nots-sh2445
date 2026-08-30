@@ -406,7 +406,9 @@ let notes=store.get('afk_notes',[]), boards=store.get('afk_boards',[]),
 if(!settings.gh)settings.gh={token:'',repo:'',last:0};
 let curThread=threads[0]?threads[0].id:null;
 
-const saveLocal=()=>{store.set('afk_notes',notes);store.set('afk_boards',boards);store.set('afk_journals',journals);
+const saveLocal=()=>{
+  if(typeof vaultKey!=='undefined'&&vaultKey){vaultWrite();return}
+  store.set('afk_notes',notes);store.set('afk_boards',boards);store.set('afk_journals',journals);
   store.set('afk_threads',threads);store.set('afk_meetings',meetings);store.set('afk_deleted',deleted);store.set('afk_prof',prof)};
 const saveSettings=()=>store.set('afk_settings',settings);
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
@@ -469,6 +471,38 @@ async function syncNow(quiet){
   if(!ghReady()){if(!quiet)openSettings('اربط المزامنة أولاً');return}
   if(syncing)return;syncing=true;setDot('busy');
   try{
+    if(vaultOn()){
+      if(!vaultKey){setDot('');syncing=false;return}
+      const rv=await ghRead('afkary-vault.json');
+      if(rv.data&&rv.data.ct){
+        try{
+          const rd=await vaultDecrypt(rv.data,vaultKey);
+          notes=mergeById(notes,rd.notes||[]);
+          journals=mergeById(journals,rd.journals||[]);
+          threads=mergeById(threads,rd.threads||[]);
+          meetings=mergeById(meetings,rd.meetings||[]);
+          boards=mergeById(boards,rd.boards||[]);
+          deleted=[...new Map([...(rd.deleted||[]),...deleted].map(d=>[d.id,d])).values()];
+          if(rd.prof&&(rd.prof.at||0)>(prof.at||0))prof=rd.prof;
+        }catch(e){throw new Error('كلمة سر مختلفة عن الجهاز الآخر')}
+      }
+      await ghWrite('afkary-vault.json',await vaultEncrypt(vaultPayload(),vaultKey),rv.sha);
+      await vaultWrite();
+      {
+        const fb=store.get('afk_fin',null);
+        const rf=await ghRead('afkary-fin.json');
+        const localEmpty=!fb||(fb.plain&&!(fb.plain.txs||[]).length&&!(fb.plain.plans||[]).length);
+        const remoteNewer=rf.data&&(rf.data.at||0)>((fb&&fb.at)||0);
+        if(rf.data&&(localEmpty||remoteNewer)){
+          store.set('afk_fin',rf.data);
+          if(rf.data.salt)store.set('afk_fin_salt',rf.data.salt);
+          finKey=null;finLoaded=false;fin={txs:[],plans:[],accounts:['بنك','كاش','الصرافة'],updatedAt:0};
+        }else if(fb&&!localEmpty){await ghWrite('afkary-fin.json',fb,rf.sha)}
+      }
+      settings.gh.last=Date.now();saveSettings();setDot('ok');renderAll();
+      if(!quiet)toast('تمت المزامنة (مشفّرة)');
+      syncing=false;return;
+    }
     const m=await ghRead('afkary-data.json');
     if(m.data){
       notes=mergeById(notes,m.data.notes||[]);
@@ -1911,6 +1945,7 @@ function openSettings(note){
    <div class="rowbtns"><button class="btn row sec" id="xImport">استيراد نسخة</button>
      <button class="btn row sec" id="xBulk">استيراد ملاحظات قديمة</button></div>
    <button class="btn sec" id="xLock">قفل التطبيق بكلمة سر</button>
+   <button class="btn sec" id="xVault">تشفير كل البيانات</button>
    <button class="btn sec" id="xNotify">تفعيل تنبيهات المهام</button>
    <button class="btn danger" id="xWipe">مسح كل شيء من هذا الجهاز</button>
    <input type="file" id="fileIn" accept="application/json" hidden>`);
@@ -1933,6 +1968,7 @@ function openSettings(note){
   $('#xImport').onclick=()=>$('#fileIn').click();$('#fileIn').onchange=importJson;
   $('#xBulk').onclick=bulkImport;
   $('#xLock').onclick=lockSettings;
+  $('#xVault').onclick=vaultSettings;
   $('#xNotify').onclick=async e=>{if(!('Notification'in window))return toast('غير مدعوم');
     const pr=await Notification.requestPermission();
     e.target.textContent=pr==='granted'?'التنبيهات مفعّلة ✓':'مرفوضة';if(pr==='granted')checkDue()};
@@ -1979,6 +2015,76 @@ function checkDue(){if(!('Notification'in window)||Notification.permission!=='gr
   }}
 
 
+
+/* ===== الخزنة: تشفير كل بيانات التطبيق ===== */
+let vaultKey=null;
+const vaultOn=()=>!!store.get('afk_vault_salt','');
+function vaultPayload(){return {notes,boards,journals,threads,meetings,deleted,prof,at:Date.now()}}
+function vaultApply(d){
+  notes=d.notes||[];boards=d.boards||[];journals=d.journals||[];
+  threads=d.threads||[];meetings=d.meetings||[];deleted=d.deleted||[];
+  if(d.prof)prof=d.prof;
+  curThread=threads[0]?threads[0].id:null;
+}
+async function vaultEncrypt(obj,key){
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(JSON.stringify(obj)));
+  return {v:1,iv:bufB64(iv),ct:bufB64(ct),salt:store.get('afk_vault_salt',''),at:Date.now()};
+}
+async function vaultDecrypt(blob,key){
+  const d=await crypto.subtle.decrypt({name:'AES-GCM',iv:b64Buf(blob.iv)},key,b64Buf(blob.ct));
+  return JSON.parse(new TextDecoder().decode(d));
+}
+async function vaultWrite(){
+  if(!vaultKey)return;
+  store.set('afk_vault',await vaultEncrypt(vaultPayload(),vaultKey));
+}
+async function vaultUnlock(pass){
+  const blob=store.get('afk_vault',null);
+  let salt=store.get('afk_vault_salt','');
+  if(blob&&blob.salt){salt=blob.salt;store.set('afk_vault_salt',salt)}
+  if(!salt)return false;
+  const key=await deriveKey(pass,b64Buf(salt));
+  if(blob&&blob.ct){
+    try{vaultApply(await vaultDecrypt(blob,key))}catch(e){return false}
+  }
+  vaultKey=key;return true;
+}
+async function enableVault(pass){
+  const salt=bufB64(crypto.getRandomValues(new Uint8Array(16)));
+  store.set('afk_vault_salt',salt);
+  vaultKey=await deriveKey(pass,b64Buf(salt));
+  await vaultWrite();
+  ['afk_notes','afk_boards','afk_journals','afk_threads','afk_meetings','afk_deleted','afk_prof','afk_chat','afk_brief','afk_map']
+    .forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});
+  queueSync();
+}
+async function disableVault(){
+  if(!vaultKey)return;
+  vaultKey=null;
+  try{localStorage.removeItem('afk_vault');localStorage.removeItem('afk_vault_salt')}catch(e){}
+  saveLocal();queueSync();
+}
+function vaultSettings(){
+  const on=vaultOn();
+  openSheet(`<h2>تشفير كل البيانات</h2>
+   <p class="hint">${on?'كل ملاحظاتك ومذكراتك واجتماعاتك ورسوماتك مشفَّرة الآن — على جهازك وفي المزامنة. لا تُقرأ إلا بكلمة سر التطبيق.'
+     :'يشفّر كل شيء بكلمة سر التطبيق نفسها بمعيار AES-256. من يفتح مستودعك أو تخزين متصفحك لن يقرأ حرفاً.<br><b>لو نسيت كلمة السر لا يمكن استرجاع أي شيء إطلاقاً.</b> صدّر نسخة احتياطية أولاً.'}</p>
+   ${on?'':'<p class="hint">يتطلب تفعيل قفل التطبيق أولاً.</p>'}
+   <label class="f">كلمة سر التطبيق للتأكيد</label>
+   <input class="inp" id="vkPass" type="password" autocomplete="off">
+   <button class="btn ${on?'danger':''}" id="vkGo">${on?'أوقف التشفير':'شفّر كل البيانات'}</button>`);
+  $('#vkGo').onclick=async()=>{
+    const cfg=lockCfg();
+    if(!cfg)return toast('فعّل قفل التطبيق أولاً');
+    const pass=$('#vkPass').value;
+    if(await hashPass(pass,cfg.salt)!==cfg.hash)return toast('كلمة السر غير صحيحة');
+    if(on){await disableVault();toast('اتوقف التشفير')}
+    else{await enableVault(pass);toast('اتشفّرت كل البيانات')}
+    $('#sheet').classList.remove('on');
+  };
+}
+
 /* ===== قفل التطبيق ===== */
 let lockedAt=0;
 async function hashPass(pass,saltB64){
@@ -1998,7 +2104,15 @@ async function tryUnlockApp(){
   const v=$('#lockPass').value;
   if(!v)return;
   const h=await hashPass(v,cfg.salt);
-  if(h===cfg.hash){$('#lockScr').classList.remove('on');lockedAt=0}
+  if(h===cfg.hash){
+    if(vaultOn()){
+      const ok=await vaultUnlock(v);
+      if(!ok){$('#lockMsg').textContent='تعذّر فتح البيانات المشفّرة';return}
+      renderAll();
+    }
+    $('#lockScr').classList.remove('on');lockedAt=0;
+    if(ghReady())syncNow(true);
+  }
   else{$('#lockMsg').textContent='كلمة السر غير صحيحة';$('#lockPass').value=''}
 }
 $('#lockGo').onclick=tryUnlockApp;
@@ -2007,6 +2121,7 @@ document.addEventListener('visibilitychange',()=>{
   if(document.hidden){lockedAt=Date.now()}
   else if(lockCfg()&&lockedAt&&Date.now()-lockedAt>2*60000){
     finKey=null;finLoaded=false;fin={txs:[],plans:[],accounts:['بنك','كاش','الصرافة'],updatedAt:0};
+    if(vaultOn()&&vaultKey){vaultKey=null;notes=[];boards=[];journals=[];threads=[];meetings=[];renderAll()}
     showLock();
   }
 });
@@ -2039,8 +2154,8 @@ function lockSettings(){
 if('serviceWorker' in navigator)
   addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 go('notes');
-if(lockCfg())showLock();
-if(ghReady()){setDot('');syncNow(true)}
+if(lockCfg())showLock('أدخل كلمة السر'+(vaultOn()?' لفك تشفير بياناتك':''));
+if(ghReady()&&!vaultOn()){setDot('');syncNow(true)}
 setTimeout(()=>{runBrief(false);checkDue()},2500);
 addEventListener('beforeunload',saveLocal);
 </script>
